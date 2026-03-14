@@ -1,7 +1,6 @@
 # pandas + NumPy Practice
 
-Daily practice notebooks working from beginner to pro level in pandas and NumPy over 3 months.
-
+Daily practice notebooks
 ## Structure
 
 Each notebook (`pandas_practice_N.ipynb`) follows the same four-level format:
