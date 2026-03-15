@@ -482,3 +482,22 @@ Fix by being explicit:
 g['month'].iloc[np.argmax(g['revenue'])]   # clearly positional
 g['month'].to_numpy()[np.argmax(g['revenue'])]  # outside pandas, no ambiguity
 ```
+
+---
+
+## `.str` — slicing and extracting substrings
+
+`.str` supports slicing just like regular Python strings:
+
+```python
+s.str[1:]    # drop the first character: 'E03' → '03'
+s.str[:3]    # first 3 characters
+```
+
+To extract digits (or any pattern) with regex:
+
+```python
+s.str.extract(r'(\d+)')[0]   # pull out the numeric part: 'E03' → '03'
+```
+
+Use slicing when the structure is fixed (e.g. always one prefix character). Use `.str.extract()` when the position varies and you need a pattern match.
