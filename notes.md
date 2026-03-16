@@ -485,6 +485,26 @@ g['month'].to_numpy()[np.argmax(g['revenue'])]  # outside pandas, no ambiguity
 
 ---
 
+## `.apply()` — if/else inside a lambda
+
+Inside `.apply()`, each value is a **scalar**, so use `if/else` — not `np.where`:
+
+```python
+# Series-level (element-wise):
+df['col'].apply(lambda x: 'Premium' if x > 50 else 'Standard')
+
+# Row-level (axis=1), multi-condition:
+df.apply(lambda row: 'High'   if row['age'] > 60 and row['severity'] > 7
+                else 'Medium' if row['age'] > 60 or  row['severity'] > 7
+                else 'Low', axis=1)
+```
+
+`&`/`|` also work on boolean scalars and give correct results — but `and`/`or` is the more natural Python style inside a lambda.
+
+`np.where` is for whole Series/arrays — don't nest it inside `.apply()`.
+
+---
+
 ## `.str` — slicing and extracting substrings
 
 `.str` supports slicing just like regular Python strings:
