@@ -521,3 +521,23 @@ s.str.extract(r'(\d+)')[0]   # pull out the numeric part: 'E03' → '03'
 ```
 
 Use slicing when the structure is fixed (e.g. always one prefix character). Use `.str.extract()` when the position varies and you need a pattern match.
+
+---
+
+## `.xs()` — cross-section of a MultiIndex
+
+`.xs()` pulls out a slice of a MultiIndex DataFrame or Series by specifying a value at a given level:
+
+```python
+df.xs('Mar', level=1)        # all rows where the second index level == 'Mar'
+df.xs('Mar', level='month')  # same, using the level name
+```
+
+After `web.stack()`, the MultiIndex is `(country, month)`:
+```python
+traffic_long = web.stack().to_frame('visits')
+traffic_long.xs('Mar', level=1)        # all March rows across every country
+traffic_long.xs('Brazil', level=0)     # all rows for Brazil across every month
+```
+
+`.xs()` is cleaner than `pd.IndexSlice` when you're slicing a single value from one level and want all values from the other level.
