@@ -524,6 +524,32 @@ Use slicing when the structure is fixed (e.g. always one prefix character). Use 
 
 ---
 
+## `pivot` vs `pivot_table`
+
+**`pivot`** — simple reshaping, no aggregation:
+- Each (index, column) combination must be **unique** — no duplicates allowed
+- Just restructures the data, no math involved
+
+```python
+df.pivot(index='date', columns='city', values='temp')
+```
+
+**`pivot_table`** — when you need to **aggregate** duplicates:
+- Multiple rows share the same (index, column) pair → needs `aggfunc` to combine them
+- Defaults to `aggfunc='mean'`
+
+```python
+df.pivot_table(index='region', columns='category', values='sales', aggfunc='sum')
+```
+
+**Quick rule:** Ask "could there be duplicate (index, column) pairs in my data?"
+- No → `pivot`
+- Yes → `pivot_table`
+
+If you use `pivot` on duplicate data, it raises a `ValueError`.
+
+---
+
 ## `.xs()` — cross-section of a MultiIndex
 
 `.xs()` pulls out a slice of a MultiIndex DataFrame or Series by specifying a value at a given level:
