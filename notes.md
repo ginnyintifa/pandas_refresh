@@ -483,6 +483,15 @@ g['month'].iloc[np.argmax(g['revenue'])]   # clearly positional
 g['month'].to_numpy()[np.argmax(g['revenue'])]  # outside pandas, no ambiguity
 ```
 
+**Using `np.argmax` on a grouped result to get back a label:**
+
+```python
+means = df.groupby('hotel')['occupancy'].mean()
+means.index[np.argmax(means)]   # returns the label (e.g. 'Grand'), not the position
+```
+
+This is the `np.argmax` equivalent of `.idxmax()` — use it when you want the label of the max group.
+
 ---
 
 ## `.apply()` — if/else inside a lambda
