@@ -576,3 +576,14 @@ traffic_long.xs('Brazil', level=0)     # all rows for Brazil across every month
 ```
 
 `.xs()` is cleaner than `pd.IndexSlice` when you're slicing a single value from one level and want all values from the other level.
+
+**`.xs()` requires a MultiIndex — it doesn't work on plain column indexes:**
+```python
+# sales_wide has a plain column index (month names) — .xs() won't work
+sales_wide.xs('Mar', axis=1)   # TypeError: Index must be a MultiIndex
+
+# Just use direct column selection instead
+sales_wide['Mar']              # correct
+```
+
+`.xs(key, axis=1)` only makes sense when the *columns* form a MultiIndex (e.g. after `stack()` + `unstack()` produces multi-level columns).
