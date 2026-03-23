@@ -587,3 +587,39 @@ sales_wide['Mar']              # correct
 ```
 
 `.xs(key, axis=1)` only makes sense when the *columns* form a MultiIndex (e.g. after `stack()` + `unstack()` produces multi-level columns).
+
+---
+
+## Survival rate with `groupby` — use `.mean()`
+
+For a 0/1 column like `survived`, `.mean()` gives the fraction directly — no need for `.apply()`:
+
+```python
+titanic.groupby(['sex', 'pclass'])['survived'].mean()
+```
+
+Avoid this pattern:
+```python
+titanic.groupby(['sex', 'pclass']).apply(lambda x: x['survived'].sum() / x.agg('count'))
+```
+
+`x.agg('count')` returns a count *per column*, so dividing a scalar by a Series duplicates the survival rate across every column — the output looks like a full DataFrame but is just noise.
+
+---
+
+## `.unstack(level)` — choosing which level becomes columns
+
+With no argument, `.unstack()` moves the **last (innermost)** index level into the columns by default.
+
+Pass a level name or position to control which level moves:
+
+```python
+# After groupby + stack, MultiIndex is (species, measurement)
+s = iris.groupby('species')[cols].mean().stack()
+
+s.unstack('species')      # → rows = measurements, columns = species
+s.unstack('measurement')  # → rows = species, columns = measurements (same as default)
+s.unstack()               # → moves last level (measurement) into columns — same as above
+```
+
+Use the level name to be explicit about what you want in the rows vs columns.
