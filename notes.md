@@ -623,3 +623,25 @@ s.unstack()               # → moves last level (measurement) into columns — 
 ```
 
 Use the level name to be explicit about what you want in the rows vs columns.
+
+---
+
+## `.pipe()` modifies the original DataFrame — use `.copy()`
+
+Inside pipe functions, `df['new_col'] = ...` modifies the DataFrame in place. pandas passes the original object, not a copy, so your source DataFrame also changes.
+
+Fix — add `.copy()` before the chain:
+
+```python
+res = df.copy().pipe(fn1).pipe(fn2).pipe(fn3)
+```
+
+Or copy inside each function:
+```python
+def add_value(df):
+    df = df.copy()
+    df['total_value'] = df['units_in_stock'] * df['unit_cost']
+    return df
+```
+
+The `.copy()` before the chain is cleaner.
