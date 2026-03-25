@@ -626,6 +626,57 @@ Use the level name to be explicit about what you want in the rows vs columns.
 
 ---
 
+## List comprehensions
+
+A compact way to build a list using a loop and optional condition — all in one line:
+
+```python
+[expression for item in iterable if condition]
+```
+
+**Basic examples:**
+```python
+[x * 2 for x in [1, 2, 3]]              # [2, 4, 6]
+[x for x in [1, 2, 3, 4] if x > 2]     # [3, 4]
+```
+
+**With a DataFrame — collect column names by dtype:**
+```python
+[col for col in df.columns if df[col].dtype.name == 'category']
+[col for col in df.columns if df[col].dtype == 'object']
+```
+
+**With a dict — collect keys by value:**
+```python
+[k for k, v in my_dict.items() if v < 10]
+```
+
+**With null counts — columns with >10% nulls:**
+```python
+[col for col in df.columns if df[col].isnull().mean() > 0.1]
+```
+
+The pattern is always: `[what_to_keep for each_item in something if condition]`.
+
+The `if` part is optional — leave it out to include every item:
+```python
+[col.upper() for col in df.columns]   # all column names, uppercased
+```
+
+Think of it as a compact for loop that collects results into a list:
+```python
+# Loop version:
+result = []
+for col in df.columns:
+    if df[col].dtype == 'object':
+        result.append(col)
+
+# List comprehension version — same thing:
+result = [col for col in df.columns if df[col].dtype == 'object']
+```
+
+---
+
 ## `.pipe()` modifies the original DataFrame — use `.copy()`
 
 Inside pipe functions, `df['new_col'] = ...` modifies the DataFrame in place. pandas passes the original object, not a copy, so your source DataFrame also changes.
