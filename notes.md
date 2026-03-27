@@ -17,6 +17,43 @@ You may also see `object` if a column has **mixed types** (e.g. some ints, some 
 
 ---
 
+## `.loc` vs `.iloc` — label vs position
+
+`.loc` is **label-based** — the row selector can be an index label, a boolean mask, or a slice of labels. The second argument selects columns by name:
+
+```python
+df.loc[5, 'price']                          # row with label 5, column 'price'
+df.loc[df['cut'] == 'Ideal', 'price']       # boolean mask + column name
+df.loc['Ideal']                             # all columns for rows where index label == 'Ideal'
+```
+
+`.iloc` is **position-based** — always uses integer positions (0, 1, 2...):
+
+```python
+df.iloc[0]        # first row by position
+df.iloc[0, 2]     # first row, third column
+```
+
+**Common mistake:** after `set_index('cut')`, the index is now cut names — `df.loc[1]` raises a `KeyError` because `1` is not a label. Use `df.iloc[0]` for the first row by position.
+
+**`set_index` doesn't modify in place** — always assign the result:
+```python
+d = diamonds.set_index('cut')   # correct
+diamonds.set_index('cut')       # does nothing — result is discarded
+```
+
+**Prefer `.loc` over chained indexing** — `df[mask]['col']` works for reading but can cause `SettingWithCopyWarning` on assignment. `df.loc[mask, 'col']` selects rows and column in one step and is always safe:
+
+```python
+# Chained — avoid
+mpg1.loc[mpg1['cylinders'] > 4]['origin']
+
+# Correct — filter rows and select column in one step
+mpg1.loc[mpg1['cylinders'] > 4, 'origin']
+```
+
+---
+
 ## Boolean filtering — operator precedence
 
 `&` and `|` bind tighter than comparison operators like `>`, `<`, `==`. Always wrap each condition in parentheses:
@@ -31,11 +68,27 @@ products[(products['rating'] > 4.0) & (products['in_stock'])]
 
 ---
 
-## Counting nulls
+## Counting nulls and finding NaN locations
 
 ```python
 df.isnull().sum()        # nulls per column (default)
 df.isnull().sum(axis=1)  # nulls per row
+```
+
+**Finding the index labels of NaN values:**
+
+```python
+# Series — index labels where value is NaN:
+s.index[s.isna()]
+
+# DataFrame — which rows have any NaN:
+df.index[df.isna().any(axis=1)]
+
+# DataFrame — which columns have any NaN:
+df.columns[df.isna().any(axis=0)]
+
+# DataFrame — exact (row, col) pairs with NaN (useful for pivot tables):
+[(r, c) for r in df.index for c in df.columns if pd.isna(df.loc[r, c])]
 ```
 
 ---
@@ -195,25 +248,30 @@ df['category_avg'] = df.groupby('category')['price'].transform('mean')
 
 ---
 
-## `groupby(observed=True)` — Categorical columns
+## `observed=True` — when and where to use it
 
-When grouping by a **Categorical** column (e.g. one created by `pd.cut()`), pandas by default includes all possible categories — even ones with no data (`observed=False`).
+When a `category` column is used to group or reshape data, pandas by default includes **all possible categories** — even ones with no data. This causes phantom empty rows/columns and a `FutureWarning`.
 
-`observed=True` means only show groups that actually appear in the data:
+**Rule: add `observed=True` any time a `category` column is used as a grouping key.**
 
+This applies to three places:
+
+**`groupby()`:**
 ```python
-df.groupby('size', observed=False)['price'].mean()
-# S     10.0
-# M     15.0
-# L      NaN   ← no data, shown anyway
-# XL     NaN   ← no data, shown anyway
-
-df.groupby('size', observed=True)['price'].mean()
-# S     10.0
-# M     15.0   ← only real groups
+df.groupby('size', observed=True)['price'].mean()   # only real groups
 ```
 
-Always use `observed=True` when grouping by a column created with `pd.cut()` or `pd.qcut()` to avoid phantom empty groups and silence the FutureWarning.
+**`pivot_table()`** — when `index` or `columns` are categorical:
+```python
+df.pivot_table(index='cut', columns='color', values='price', observed=True)
+```
+
+**`transform()` inside `groupby()`:**
+```python
+df.groupby('sex', observed=True)['tip'].transform('mean')
+```
+
+Without `observed=True` you get NaN rows/columns for categories that don't appear in the data, plus a `FutureWarning` that will become an error in a future pandas version.
 
 ---
 
@@ -577,6 +635,17 @@ traffic_long.xs('Brazil', level=0)     # all rows for Brazil across every month
 
 `.xs()` is cleaner than `pd.IndexSlice` when you're slicing a single value from one level and want all values from the other level.
 
+**Selecting both levels at once with a tuple:**
+```python
+# Two chained .xs() calls:
+df.xs(2, level='pclass').xs('female', level='sex')
+
+# Same thing in one call — pass a tuple:
+df.xs((2, 'female'))
+```
+
+The tuple version is shorter when you want a specific combination across multiple levels.
+
 **`.xs()` requires a MultiIndex — it doesn't work on plain column indexes:**
 ```python
 # sales_wide has a plain column index (month names) — .xs() won't work
@@ -623,6 +692,51 @@ s.unstack()               # → moves last level (measurement) into columns — 
 ```
 
 Use the level name to be explicit about what you want in the rows vs columns.
+
+---
+
+## `category` dtype and the `.cat` accessor
+
+Convert a column to save memory when it has many repeated values:
+```python
+df['col'] = df['col'].astype('category')
+```
+
+The `.cat` accessor gives you category-specific tools:
+```python
+df['col'].cat.categories   # the unique values (Index)
+df['col'].cat.codes        # integer code for each row (Series)
+```
+
+**Getting a category → code mapping:**
+```python
+# Most idiomatic:
+{cat: code for code, cat in enumerate(df['col'].cat.categories)}
+# e.g. {'Biscoe': 0, 'Dream': 1, 'Torgersen': 2}
+```
+
+`cat.categories` only gives names — `enumerate` generates the matching code numbers (0, 1, 2...) since pandas assigns codes in the same order as `cat.categories`.
+
+**Ordered categories** — enable `<`, `>` comparisons:
+```python
+dtype = pd.CategoricalDtype(categories=['Fair', 'Good', 'Very Good', 'Premium', 'Ideal'], ordered=True)
+df['cut'] = df['cut'].astype(dtype)
+df[df['cut'] > 'Good']   # returns Very Good, Premium, Ideal
+```
+
+The order is left = lowest, right = highest — exactly as you list them.
+
+**Removing unused categories after filtering:**
+```python
+filtered = df[df['island'] == 'Biscoe']
+filtered['species'].cat.categories          # still shows all 3 species
+filtered['species'].cat.remove_unused_categories()  # only keeps species that appear
+```
+
+**Memory check:**
+```python
+df.memory_usage(deep=True)   # always use deep=True for accurate string/category sizes
+```
 
 ---
 
