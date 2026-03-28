@@ -36,6 +36,14 @@ df.iloc[0, 2]     # first row, third column
 
 **Common mistake:** after `set_index('cut')`, the index is now cut names — `df.loc[1]` raises a `KeyError` because `1` is not a label. Use `df.iloc[0]` for the first row by position.
 
+**Can't mix slice and column name in `[]`:**
+```python
+planets[0:5, 'method']    # TypeError — doesn't work
+
+planets.iloc[0:5]['method']     # correct
+planets.loc[0:5, 'method']      # correct (when index is default integers)
+```
+
 **`set_index` doesn't modify in place** — always assign the result:
 ```python
 d = diamonds.set_index('cut')   # correct
