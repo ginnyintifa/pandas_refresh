@@ -83,6 +83,14 @@ df.isnull().sum()        # nulls per column (default)
 df.isnull().sum(axis=1)  # nulls per row
 ```
 
+**Dropping rows with nulls — `dropna()`:**
+
+```python
+df.dropna()                                        # drop rows with NaN in ANY column
+df.dropna(subset=['orbital_period', 'mass'])       # drop if EITHER column is NaN (default: how='any')
+df.dropna(subset=['orbital_period', 'mass'], how='all')  # drop only if BOTH are NaN
+```
+
 **Finding the index labels of NaN values:**
 
 ```python
@@ -400,6 +408,24 @@ df.groupby('species')[numeric_cols].agg(['mean', 'std'])
 df.groupby('species').agg(['mean', 'std'])                       # TypeError on object columns
 df.groupby('species').agg(['mean', 'std'], numeric_only=True)    # numeric_only not a valid agg kwarg
 ```
+
+**Different stat per column — pass a dict of tuples:**
+
+```python
+t = planets.groupby('method', observed=True).agg(
+    total_planets=('number', 'sum'),
+    mean_distance=('distance', 'mean'),
+    median_orbital_period=('orbital_period', 'median')
+)
+```
+
+The keys are the **new column names**, the values are tuples of `(source_column, aggregation)`. Result has flat columns — no multi-level — so filtering is straightforward:
+
+```python
+t.loc[t['total_planets'] > 100]
+```
+
+Compare to passing a list like `['sum', 'mean']` — that applies every stat to every column and gives a multi-level column structure: `t[('number', 'sum')]`.
 
 ---
 
