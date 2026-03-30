@@ -36,6 +36,19 @@ df.iloc[0, 2]     # first row, third column
 
 **Common mistake:** after `set_index('cut')`, the index is now cut names — `df.loc[1]` raises a `KeyError` because `1` is not a label. Use `df.iloc[0]` for the first row by position.
 
+**`.loc` slicing requires the labels to exist and be in order** — `df.loc[0:5]` finds label `0` and label `5` in the index and returns everything between them. After sorting or filtering, the integer labels get shuffled, so `loc[0:5]` can return an empty DataFrame or unexpected rows:
+
+```python
+df = df.sort_values('price', ascending=False)
+df.loc[0:5]    # label 0 may now be in the middle — unpredictable result
+df.iloc[0:5]   # always the first 5 rows by position — use this after sorting
+```
+
+To use `.loc` safely after sorting, use the actual index labels:
+```python
+df.loc[df.index[0:5]]   # gets the labels of the first 5 rows, then selects by label
+```
+
 **Can't mix slice and column name in `[]`:**
 ```python
 planets[0:5, 'method']    # TypeError — doesn't work
@@ -202,6 +215,15 @@ pd.pivot_table(df, values='tip_pct', index='sex', columns='day')               #
 pd.pivot_table(df, values='tip_pct', index='sex', columns='day', aggfunc='sum')
 pd.pivot_table(df, values='tip_pct', index='sex', columns='day', aggfunc='count')
 ```
+
+**Counting rows — `'count'` vs `'size'`:**
+
+```python
+aggfunc='count'   # counts non-NaN values in the `values` column — skips NaN
+aggfunc='size'    # counts all rows in each group, including NaN
+```
+
+Use `'size'` when you want the true number of rows per group. Use `'count'` when you want to know how many rows have a non-null value. They give the same result if your `values` column has no nulls.
 
 `groupby()` can produce the same values but returns a Series instead of a 2D table:
 
