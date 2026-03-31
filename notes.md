@@ -372,18 +372,26 @@ df = df.set_index(['region', 'quarter']).sort_index()
 # region and quarter become index levels, no longer columns
 ```
 
-**Retrieving rows:**
+**Retrieving rows with `.loc`:**
 ```python
-df.loc['West']                # all rows where first level == 'West'
-df.loc[('East', 'Q3')]        # single row for specific (region, quarter) combo
+df.loc['West']                    # all rows where first level == 'West'
+df.loc[('East', 'Q3')]            # exact match on both levels
+df.loc['C':'S']                   # range on first level (label-inclusive)
+df.loc[('East', 'Q3'), 'revenue'] # both levels + column
 ```
 
 **Slicing by second level** — use `pd.IndexSlice` or `slice(None)` for "all" on a level:
 ```python
 idx = pd.IndexSlice
-df.loc[idx[:, 'Q3'], :]       # all Q3 rows across every region (readable)
-df.loc[(slice(None), 'Q3'), :] # same thing, without pd.IndexSlice
+df.loc[idx[:, 'Q3'], :]            # all Q3 rows across every region (readable)
+df.loc[(slice(None), 'Q3'), :]     # same thing, without pd.IndexSlice
 ```
+
+**`.loc` vs `.xs()` on a MultiIndex:**
+- `s.loc[('C', 1)]` — selects that exact row, keeps all columns
+- `s.xs(('C', 1))` — same result, but `.xs()` also lets you specify `level=` to slice a non-first level more easily
+
+Use `.loc` when you know the exact label(s). Use `.xs()` when you want to slice by a specific level that isn't the first one.
 
 **Mean per group using NumPy:**
 ```python
@@ -843,6 +851,38 @@ for col in df.columns:
 
 # List comprehension version — same thing:
 result = [col for col in df.columns if df[col].dtype == 'object']
+```
+
+---
+
+## Dict comprehensions
+
+Same idea as list comprehensions but builds a dict — use `{key: value for ...}`:
+
+```python
+{key_expr: value_expr for item in iterable if condition}
+```
+
+**Basic example:**
+```python
+{x: x**2 for x in [1, 2, 3]}    # {1: 1, 2: 4, 3: 9}
+```
+
+**Category → code mapping (most common use):**
+```python
+{cat: code for code, cat in enumerate(df['col'].cat.categories)}
+# e.g. {'Thur': 0, 'Fri': 1, 'Sat': 2, 'Sun': 3}
+```
+
+**From an existing dict — filter by value:**
+```python
+{k: v for k, v in my_dict.items() if v > 10}
+```
+
+The key mistake to avoid — you can't use `and` to combine two `for` clauses:
+```python
+{k: v for k in keys and v in values}   # SyntaxError — wrong
+{k: v for k, v in zip(keys, values)}   # correct
 ```
 
 ---
