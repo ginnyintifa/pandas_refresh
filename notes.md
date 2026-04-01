@@ -653,6 +653,20 @@ s.str.extract(r'(\d+)')[0]   # pull out the numeric part: 'E03' → '03'
 
 Use slicing when the structure is fixed (e.g. always one prefix character). Use `.str.extract()` when the position varies and you need a pattern match.
 
+**Vectorized string concatenation with `+`:**
+
+pandas overloads `+` for string Series — it concatenates element-wise, no loop needed:
+
+```python
+df['island_species'] = df['island'] + '_' + df['species']
+# e.g. 'Torgersen' + '_' + 'Adelie' → 'Torgersen_Adelie'
+```
+
+This only works when the columns are `object` dtype. For `category` columns, convert first:
+```python
+df['island'].astype(str) + '_' + df['species'].astype(str)
+```
+
 ---
 
 ## `pivot` vs `pivot_table`
