@@ -848,6 +848,12 @@ A compact way to build a list using a loop and optional condition — all in one
 [col for col in df.columns if df[col].isnull().mean() > 0.1]
 ```
 
+**Filtering rows from two columns in parallel — use `zip`:**
+```python
+[name for name, band in zip(df['name'], df['band']) if band == 'exec']
+```
+This pairs each name with its corresponding band value. Without `zip`, `if band == 'exec'` would compare the entire Series to a scalar, raising `ValueError: The truth value of a Series is ambiguous`.
+
 The pattern is always: `[what_to_keep for each_item in something if condition]`.
 
 The `if` part is optional — leave it out to include every item:
