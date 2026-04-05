@@ -875,6 +875,24 @@ result = [col for col in df.columns if df[col].dtype == 'object']
 
 ---
 
+## Set comprehensions
+
+Same syntax as a list comprehension but with `{}` — produces a set (unordered, unique values):
+
+```python
+{species for species, bc in zip(df['species'], df['bill_class']) if bc == 'wide'}
+```
+
+Use when you want unique values and don't care about order.
+
+```python
+[...]   # list comprehension  → ordered, allows duplicates
+{...}   # set comprehension   → unordered, unique values only
+{k: v}  # dict comprehension  → key-value pairs
+```
+
+---
+
 ## Dict comprehensions
 
 Same idea as list comprehensions but builds a dict — use `{key: value for ...}`:
@@ -904,6 +922,32 @@ The key mistake to avoid — you can't use `and` to combine two `for` clauses:
 {k: v for k in keys and v in values}   # SyntaxError — wrong
 {k: v for k, v in zip(keys, values)}   # correct
 ```
+
+---
+
+## When `.copy()` is redundant after a slice
+
+`.copy()` is needed when you get a view from a slice and then assign new columns to it:
+
+```python
+# ps might be a view — assigning to it can trigger SettingWithCopyWarning
+ps = penguins.loc[penguins['species'] == 'Adelie', ['bill_length_mm', 'bill_depth_mm']]
+ps['new_col'] = 0   # warning
+
+# .copy() makes it safe
+ps = penguins.loc[...].copy()
+ps['new_col'] = 0   # fine
+```
+
+But if your chain ends with something that already produces a new DataFrame — `.dropna()`, `.reset_index()`, `.rename()`, etc. — the result is already independent. Adding `.copy()` before it is redundant:
+
+```python
+# .dropna() returns a new DataFrame, so ps is not a view — no .copy() needed
+ps = penguins.loc[penguins['species'] == 'Adelie', cols].dropna()
+ps['new_col'] = 0   # safe
+```
+
+**Rule:** only add `.copy()` when the slice itself is the last step and you plan to mutate it afterward.
 
 ---
 
