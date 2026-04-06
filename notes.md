@@ -891,6 +891,13 @@ Use when you want unique values and don't care about order.
 {k: v}  # dict comprehension  → key-value pairs
 ```
 
+**With a groupby result — filter groups by their aggregated value:**
+```python
+rates = titanic.groupby('embark_town')['survived'].mean()
+{et for et, r in zip(rates.index, rates) if r > 0.5}
+```
+After groupby, the index holds the group keys — zip `rates.index` with `rates` to pair each town with its survival rate.
+
 ---
 
 ## Dict comprehensions
