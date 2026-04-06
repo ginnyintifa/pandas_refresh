@@ -75,6 +75,30 @@ mpg1.loc[mpg1['cylinders'] > 4, 'origin']
 
 ---
 
+## Negating a boolean — `~` vs `not` vs `!`
+
+| Operator | Use case |
+|---|---|
+| `~` | Negate a **boolean Series or array** (element-wise) |
+| `not` | Negate a **single scalar** boolean |
+| `!` | Doesn't exist in Python |
+
+```python
+# Series — use ~
+~df['is_alone']
+~(df['fare'] > 50)
+
+# Scalar — use not
+not True          # False
+
+# Inside .apply() lambda — scalars, so use not
+df['col'].apply(lambda x: 'yes' if not x else 'no')
+```
+
+`!` is from JavaScript/C — it does not work in Python.
+
+---
+
 ## Boolean filtering — operator precedence
 
 `&` and `|` bind tighter than comparison operators like `>`, `<`, `==`. Always wrap each condition in parentheses:
