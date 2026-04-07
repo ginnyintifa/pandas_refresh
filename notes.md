@@ -17,6 +17,24 @@ You may also see `object` if a column has **mixed types** (e.g. some ints, some 
 
 ---
 
+## `df[mask, 'col']` doesn't work — use `.loc`
+
+Plain `[]` only accepts one thing at a time — a mask **or** a column name, not both:
+
+```python
+df[mask]          # rows — ok
+df['col']         # column — ok
+df[mask, 'col']   # TypeError — can't do both at once
+```
+
+`.loc` has two slots separated by a comma — rows first, columns second:
+
+```python
+df.loc[mask, 'col']   # correct
+```
+
+---
+
 ## `.loc` vs `.iloc` — label vs position
 
 `.loc` is **label-based** — the row selector can be an index label, a boolean mask, or a slice of labels. The second argument selects columns by name:
