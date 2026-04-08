@@ -678,6 +678,53 @@ df.apply(lambda row: 'High'   if row['age'] > 60 and row['severity'] > 7
 
 ---
 
+## `.str.contains()` and `.str.extract()` — regex string matching
+
+**`.str.contains(pattern)`** — returns a boolean Series: True where the string matches.
+```python
+df['name'].str.contains('ford')                  # substring match
+df['name'].str.contains('ford', case=False)      # case-insensitive
+df['name'].str.contains(r'^toyota')              # regex: starts with 'toyota'
+df['name'].str.contains(r'pickup|truck')         # either word
+df['col'].str.contains(r'A|B|C', na=False)       # na=False treats NaN as non-match
+```
+
+**`.str.extract(pattern)`** — pulls out the part matching a capture group `()`.
+```python
+df['col'].str.extract(r'(\d+)')[0]       # extract digits: 'Model-42' → '42'
+df['col'].str.extract(r'^(\w+)')         # first word
+df['name'].str.extract(r'([A-Z][a-z]+\.)') # title like 'Mr.', 'Mrs.'
+```
+
+**Capture group `()` — when it matters:**
+```python
+# .str.contains() — () is optional, makes no difference to results
+df['deck'].str.contains(r'A|B|C', na=False)
+df['deck'].str.contains(r'(A|B|C)', na=False)   # identical output
+
+# .str.extract() — () is required, tells pandas what to return
+df['deck'].str.extract(r'(A|B|C)')   # works
+df['deck'].str.extract(r'A|B|C')     # error — no capture group
+```
+
+**Raw strings `r''` — always use for regex:**
+```python
+r'\d+'   # correct — \d means digit
+'\\d+'   # same but harder to read
+'\d+'    # works by accident for \d, but breaks for \n, \t etc
+```
+
+**`r''` vs `''` only differs when backslashes are involved** — `r'A|B|C'` and `'A|B|C'` are identical.
+
+**`.map()` for code → label mapping** (not `.str.extract()`):
+```python
+port_map = {'S': 'Southampton', 'C': 'Cherbourg', 'Q': 'Queenstown'}
+df['port'] = df['embarked'].map(port_map)
+```
+`.str.extract()` extracts substrings — it can't rename them. Use `.map()` when you have a fixed lookup table.
+
+---
+
 ## `.str` — slicing and extracting substrings
 
 `.str` supports slicing just like regular Python strings:
