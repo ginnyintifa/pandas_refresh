@@ -33,6 +33,18 @@ df[mask, 'col']   # TypeError — can't do both at once
 df.loc[mask, 'col']   # correct
 ```
 
+**Single vs double brackets in `.loc`:**
+```python
+df.loc[mask, 'col']     # single brackets → Series
+df.loc[mask, ['col']]   # double brackets → DataFrame (one column)
+```
+
+This matters when passing to `np.mean()` — it expects a Series, not a DataFrame:
+```python
+np.mean(res.loc[res['is_api'], 'status_code'] >= 400)    # scalar ✓
+np.mean(res.loc[res['is_api'], ['status_code']] >= 400)  # Series with one value ✗
+```
+
 ---
 
 ## `.loc` vs `.iloc` — label vs position
@@ -706,6 +718,19 @@ df['deck'].str.contains(r'(A|B|C)', na=False)   # identical output
 df['deck'].str.extract(r'(A|B|C)')   # works
 df['deck'].str.extract(r'A|B|C')     # error — no capture group
 ```
+
+**Extracting everything after a character:**
+```python
+df['email'].str.extract(r'@(.+)')[0]   # 'alice@gmail.com' → 'gmail.com'
+```
+`@` matches the literal `@`, `(.+)` captures everything after it.
+
+**Non-capturing group `(?:...)`** — group for logic without returning in the result:
+```python
+r'(GET|POST) (\S+)'    # two capture groups → extract returns two columns
+r'(?:GET|POST) (\S+)'  # one capture group  → extract returns one column (the path)
+```
+Use `(?:...)` when you need `|` or grouping for matching, but don't want that part in the output. `\S` means any non-whitespace character.
 
 **Raw strings `r''` — always use for regex:**
 ```python
