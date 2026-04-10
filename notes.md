@@ -783,6 +783,26 @@ df['island'].astype(str) + '_' + df['species'].astype(str)
 
 ---
 
+## `len()` vs `.str.len()`
+
+In base Python, `len()` is a built-in function — always call it as `len(x)`, never as a method:
+
+```python
+len("hello")      # 5
+len([1, 2, 3])    # 3
+```
+
+`.len()` only exists as part of the pandas string accessor:
+
+```python
+df['col'].str.len()                  # length of each string in a Series
+df['col'].str.split().str.len()      # length of each resulting list
+```
+
+Never write `.len()` on a plain Python object — it will raise `AttributeError`.
+
+---
+
 ## `pivot` vs `pivot_table`
 
 **`pivot`** — simple reshaping, no aggregation:
