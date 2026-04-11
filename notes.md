@@ -781,6 +781,29 @@ This only works when the columns are `object` dtype. For `category` columns, con
 df['island'].astype(str) + '_' + df['species'].astype(str)
 ```
 
+**`(?:...)` — when you actually need it:**
+
+`(?:)` is a non-capturing group. You don't need it just to skip over a literal prefix — write the prefix inline:
+
+```python
+r'status=(\d+)'       # fine — literal prefix, one capture group
+r'(?:status=)(\d+)'   # unnecessary here
+```
+
+Use `(?:)` when you need grouping for logic, not just to match text:
+```python
+r'(?:foo|bar)(\d+)'   # alternation — group foo|bar without capturing
+r'(?:ab)+'            # repeat a multi-char sequence
+```
+
+**`\S+` — match non-whitespace:**
+
+Useful when extracting a value that runs until the next space:
+```python
+r'endpoint=(\S+)'   # captures everything after 'endpoint=' up to first space
+```
+Cleaner than `(.+)(?: +)`, which is greedy and can leave trailing spaces in the captured value.
+
 ---
 
 ## `len()` vs `.str.len()`
