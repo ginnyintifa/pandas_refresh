@@ -832,6 +832,25 @@ df['col'].str.split().str.len()      # length of each resulting list
 
 Never write `.len()` on a plain Python object — it will raise `AttributeError`.
 
+## `.str` and `.contains()` — pandas only, not plain Python strings
+
+`.str` and `.contains()` only exist on pandas Series. Plain Python strings use different syntax:
+
+| Task | Plain Python string | pandas Series |
+|------|-------------------|---------------|
+| Check substring | `'score' in cn` | `s.str.contains('score')` |
+| Get length | `len(cn)` | `s.str.len()` |
+| Slice | `cn[:3]` | `s.str[:3]` |
+
+Common mistake — iterating over columns gives plain strings, not a Series:
+```python
+# WRONG — cn is a plain string, not a Series
+[cn for cn in df.columns if cn.str.contains('score')]   # AttributeError
+
+# CORRECT
+[cn for cn in df.columns if 'score' in cn]
+```
+
 ---
 
 ## `pivot` vs `pivot_table`
