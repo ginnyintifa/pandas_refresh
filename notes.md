@@ -752,7 +752,15 @@ df['port'] = df['embarked'].map(port_map)
 
 ## `.str` — slicing and extracting substrings
 
-`.str` supports slicing just like regular Python strings:
+`.str` applies string/sequence operations element-wise across a Series. It works on both strings and lists — so after `.str.split()`, each element is a list, and `.str[i]` picks index `i` from each one:
+
+```python
+files['path'].str.split('/').str[2]   # grab index 2 from each resulting list
+```
+
+This is the vectorized shorthand for `.apply(lambda x: x[2])`.
+
+`.str` also supports slicing on strings directly:
 
 ```python
 s.str[1:]    # drop the first character: 'E03' → '03'
