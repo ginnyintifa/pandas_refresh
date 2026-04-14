@@ -853,6 +853,31 @@ Common mistake — iterating over columns gives plain strings, not a Series:
 
 ---
 
+## Regex — pandas `.str` vs plain Python `re`
+
+The regex syntax (patterns) is identical in both. The difference is the API.
+
+**Plain Python** — `re` module, one string at a time:
+```python
+import re
+
+s = 'TXN-2024-001-USD'
+re.search(r'(\d{4})', s).group(1)   # '2024'
+re.findall(r'\d+', s)               # ['2024', '001']
+re.sub(r'\d+', 'X', s)             # 'TXN-X-X-X'
+```
+
+**pandas** — `.str` accessor, entire Series at once (vectorized):
+```python
+df['col'].str.extract(r'(\d{4})')    # DataFrame, one col per capture group
+df['col'].str.contains(r'\d+')       # boolean Series
+df['col'].str.replace(r'\d+', 'X')  # string Series
+```
+
+Use `re` when working with a single string outside a DataFrame. Use `.str` methods inside a DataFrame — no loop needed.
+
+---
+
 ## `pivot` vs `pivot_table`
 
 **`pivot`** — simple reshaping, no aggregation:
