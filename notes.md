@@ -688,6 +688,18 @@ df.apply(lambda row: 'High'   if row['age'] > 60 and row['severity'] > 7
 
 `np.where` is for whole Series/arrays — don't nest it inside `.apply()`.
 
+**When to use `.apply()` with `DateOffset` vs vectorized:**
+
+`DateOffset` works element-wise on a Series — use vectorized when the offset is fixed:
+```python
+df['review_date'] = df['deadline'] - pd.DateOffset(weeks=2)   # fixed offset — no .apply() needed
+```
+
+Use `.apply(axis=1)` only when the offset varies per row:
+```python
+df['deadline'] = df.apply(lambda row: row['start'] + pd.DateOffset(weeks=row['duration']), axis=1)
+```
+
 ---
 
 ## `.str.contains()` and `.str.extract()` — regex string matching
