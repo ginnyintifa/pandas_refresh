@@ -1198,3 +1198,36 @@ def add_value(df):
 ```
 
 The `.copy()` before the chain is cleaner.
+
+---
+
+## `shift(n)` vs `shift(n, freq=...)` — values vs index
+
+These two do fundamentally different things:
+
+**`shift(n)`** — moves the **values** down by `n` rows. The index stays fixed. Leaves `NaN` at the top:
+```python
+sales.shift(4)
+# 2024-01-07    NaN       ← first 4 rows become NaN
+# 2024-01-14    NaN
+# 2024-01-21    NaN
+# 2024-01-28    NaN
+# 2024-02-04    120.0     ← value from 4 rows earlier
+# ...
+```
+Use this to align values with a lagged version of themselves — e.g. comparing this week's sales to 4 weeks ago.
+
+**`shift(n, freq='W')`** — moves the **index** forward by `n` weeks. The values don't change. No NaN introduced:
+```python
+sales.shift(4, freq='W')
+# 2024-02-04    120       ← same value, index shifted forward 4 weeks
+# 2024-02-11    135
+# ...
+```
+Use this when you want to re-timestamp a copy of the data — e.g. creating a `lagged` DataFrame that can be joined back to the original on its index.
+
+**Key difference — join behavior:**
+```python
+sales.join(lagged, lsuffix='_now', rsuffix='_4w_ago')
+```
+With `freq=` shift, `lagged`'s index lines up with the original's index 4 weeks later, so each row shows current vs. what was happening 4 weeks prior — without any NaN from the shift itself.
