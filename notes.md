@@ -616,6 +616,18 @@ np.mean(df['tenure_days'])
 np.median(df['tenure_days'])
 ```
 
+**Extracting hours from a Timedelta Series — use `.dt.total_seconds()`:**
+
+Subtracting two datetime columns gives a Timedelta Series. To get the difference in hours, you need `.dt` (required for any time component on a Series) and `.total_seconds()` — `.hour` doesn't exist on Timedelta:
+
+```python
+# Wrong — .hour doesn't exist on Timedelta, and .dt is missing
+(flights['arrive_utc'] - flights['depart_utc']).hour       # AttributeError
+
+# Correct
+(flights['arrive_utc'] - flights['depart_utc']).dt.total_seconds() / 3600
+```
+
 ---
 
 This also happens after `.dropna()`, `.drop_duplicates()`, or any filter — the index keeps the original row numbers, so it's no longer `0, 1, 2...`:
@@ -1150,6 +1162,19 @@ The key mistake to avoid — you can't use `and` to combine two `for` clauses:
 {k: v for k in keys and v in values}   # SyntaxError — wrong
 {k: v for k, v in zip(keys, values)}   # correct
 ```
+
+**Mapping keys → lists of values (grouping):**
+
+Dict comprehensions only work when each key maps to a single value. When you need a key → list mapping, use a plain loop with `.setdefault()`:
+
+```python
+result = {}
+for plan, sid in zip(subs['plan'], subs['subscriber_id']):
+    result.setdefault(plan, []).append(sid)
+# {'Basic': [101, 104], 'Pro': [102], 'Enterprise': [103]}
+```
+
+`setdefault(key, default)` returns the existing value if the key exists, or inserts `default` and returns it — so `.append()` always works without an `if` check.
 
 ---
 
