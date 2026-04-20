@@ -1256,3 +1256,36 @@ Use this when you want to re-timestamp a copy of the data — e.g. creating a `l
 sales.join(lagged, lsuffix='_now', rsuffix='_4w_ago')
 ```
 With `freq=` shift, `lagged`'s index lines up with the original's index 4 weeks later, so each row shows current vs. what was happening 4 weeks prior — without any NaN from the shift itself.
+
+---
+
+## `join()` vs `merge()` — index vs column joins
+
+Both do the same thing under the hood — `join` is a convenience wrapper around `merge`.
+
+**`merge()`** — full control, join on columns or index:
+```python
+df1.merge(df2, on='key')                          # join on a column
+df1.merge(df2, left_on='id', right_on='emp_id')   # different column names
+df1.merge(df2, left_index=True, right_index=True) # join on index
+```
+Default is inner join.
+
+**`join()`** — shortcut for index-on-index (or index-on-column) joins:
+```python
+df1.join(df2)              # aligns on index by default
+df1.join(df2, on='key')    # df1 column matched to df2's index
+```
+Default is left join.
+
+**Rule of thumb:** use `join()` when aligning on the index, `merge()` when joining on columns.
+
+**`join()` arguments:**
+```python
+df.join(other, on=None, how='left', lsuffix='', rsuffix='', sort=False)
+```
+- `other` — the DataFrame/Series to join
+- `on` — column in `df` to match against `other`'s index (if omitted, uses `df`'s index)
+- `how` — `'left'` (default), `'right'`, `'inner'`, `'outer'`
+- `lsuffix` / `rsuffix` — suffix to add to overlapping column names
+- `sort` — sort the result index; default `False`
