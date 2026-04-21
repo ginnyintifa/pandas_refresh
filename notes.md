@@ -1289,3 +1289,38 @@ df.join(other, on=None, how='left', lsuffix='', rsuffix='', sort=False)
 - `how` — `'left'` (default), `'right'`, `'inner'`, `'outer'`
 - `lsuffix` / `rsuffix` — suffix to add to overlapping column names
 - `sort` — sort the result index; default `False`
+
+---
+
+## Finding the key with the max value in a dict
+
+`list(d.keys())[np.argmax(list(d.values()))]` works but is roundabout — `np.argmax` is meant for arrays, not dicts.
+
+Use `max()` with `key=` instead:
+
+```python
+max(meang, key=meang.get)   # returns the key with the highest value
+```
+
+`max()` iterates over the dict's keys and uses `.get` to look up each value. Cleaner, no index arithmetic, no list conversion.
+
+Use `np.argmax` when working with arrays or Series. For dict lookups, `max(..., key=...)` is the right tool.
+
+---
+
+## f-string quote conflicts
+
+Inside an f-string, the quotes used for dictionary keys must differ from the quotes wrapping the f-string:
+
+```python
+# Wrong — inner single quotes close the f-string early
+print(f'std is {np.std(team['local_hour'])}')   # SyntaxError
+
+# Correct — use double quotes inside
+print(f'std is {np.std(team["local_hour"])}')
+
+# Also correct — swap the outer quotes
+print(f"std is {np.std(team['local_hour'])}")
+```
+
+**Rule:** if your f-string uses `'...'`, use `"..."` for keys inside `{}`, and vice versa.
