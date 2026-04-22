@@ -1306,6 +1306,25 @@ max(meang, key=meang.get)   # returns the key with the highest value
 
 Use `np.argmax` when working with arrays or Series. For dict lookups, `max(..., key=...)` is the right tool.
 
+**Even cleaner — wrap in `pd.Series` and use `.idxmax()`:**
+
+When collecting group stats into a dict (e.g. `np.nanmean` per column), skip the loop entirely with a dict comprehension, wrap in `pd.Series`, then call `.idxmax()`:
+
+```python
+# Less clean — dict loop + max()
+y = {}
+for c in revenue.columns:
+    cy = al[c + '_yoy']
+    y[c] = np.nanmean(cy)
+max(y, key=y.get)
+
+# Cleaner — dict comprehension + pd.Series + .idxmax()
+y = pd.Series({c: np.nanmean(al[c+'_yoy']) for c in revenue.columns})
+y.idxmax()
+```
+
+Use `np.nanmean` here (not `np.mean`) because YoY columns have NaN for the first N rows where no prior-year data exists.
+
 ---
 
 ## f-string quote conflicts
