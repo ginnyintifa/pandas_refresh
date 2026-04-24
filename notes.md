@@ -1327,6 +1327,36 @@ Use `np.nanmean` here (not `np.mean`) because YoY columns have NaN for the first
 
 ---
 
+## `groupby()` on a Series — passing an external grouper
+
+You can call `.groupby()` directly on a Series, passing another Series as the grouping key:
+
+```python
+s.groupby(another_series)
+```
+
+As long as both Series share the same index, pandas lines them up and groups `s` by the values in `another_series`. This is equivalent to grouping on a DataFrame column:
+
+```python
+# Form 1 — groupby on a DataFrame (common)
+diamonds.groupby('color')['cut'].something()
+
+# Form 2 — groupby on a Series, grouper passed externally
+diamonds['cut'].groupby(diamonds['color']).something()
+```
+
+The two forms produce the same result. Form 2 is useful when the Series being grouped has already been transformed (e.g. into booleans) and you don't want to add it as a column first:
+
+```python
+# Fraction of rows with cut >= 'Very Good', per color group
+# (works because 'cut' is an ordered category)
+(diamonds['cut'] >= 'Very Good').groupby(diamonds['color']).mean()
+```
+
+Without adding a new column to the DataFrame, this groups the boolean Series by color and takes the mean — giving the fraction of high-quality cuts per color.
+
+---
+
 ## f-string quote conflicts
 
 Inside an f-string, the quotes used for dictionary keys must differ from the quotes wrapping the f-string:
