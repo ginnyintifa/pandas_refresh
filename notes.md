@@ -1,6 +1,10 @@
 # pandas + NumPy Notes
 
-## `object` dtype
+---
+
+## Data Types
+
+### `object` dtype
 
 In pandas, `object` dtype means the column holds Python objects — in practice, almost always **strings**.
 
@@ -17,7 +21,75 @@ You may also see `object` if a column has **mixed types** (e.g. some ints, some 
 
 ---
 
-## `df[mask, 'col']` doesn't work — use `.loc`
+### `category` dtype and the `.cat` accessor
+
+Convert a column to save memory when it has many repeated values:
+```python
+df['col'] = df['col'].astype('category')
+```
+
+The `.cat` accessor gives you category-specific tools:
+```python
+df['col'].cat.categories   # the unique values (Index)
+df['col'].cat.codes        # integer code for each row (Series)
+```
+
+**Getting a category → code mapping:**
+```python
+# Most idiomatic:
+{cat: code for code, cat in enumerate(df['col'].cat.categories)}
+# e.g. {'Biscoe': 0, 'Dream': 1, 'Torgersen': 2}
+```
+
+`cat.categories` only gives names — `enumerate` generates the matching code numbers (0, 1, 2...) since pandas assigns codes in the same order as `cat.categories`.
+
+**Ordered categories** — enable `<`, `>` comparisons:
+```python
+dtype = pd.CategoricalDtype(categories=['Fair', 'Good', 'Very Good', 'Premium', 'Ideal'], ordered=True)
+df['cut'] = df['cut'].astype(dtype)
+df[df['cut'] > 'Good']   # returns Very Good, Premium, Ideal
+```
+
+The order is left = lowest, right = highest — exactly as you list them.
+
+**Removing unused categories after filtering:**
+```python
+filtered = df[df['island'] == 'Biscoe']
+filtered['species'].cat.categories          # still shows all 3 species
+filtered['species'].cat.remove_unused_categories()  # only keeps species that appear
+```
+
+**Memory check:**
+```python
+df.memory_usage(deep=True)   # always use deep=True for accurate string/category sizes
+```
+
+---
+
+### `pd.cut()` — right-inclusive bins
+
+`pd.cut()` bins are **right-inclusive** (closed on the right) by default:
+
+```python
+pd.cut(age, bins=[0, 17, 35, 60, 100], labels=['Minor', 'Young Adult', 'Adult', 'Senior'])
+# bins are (0, 17], (17, 35], (35, 60], (60, 100]
+# age=17 → 'Minor', age=35 → 'Young Adult'
+```
+
+The left edge is excluded, the right edge is included. Keep this in mind when setting bin boundaries.
+
+Use `np.inf` as the upper bound when the last bin has no upper limit:
+
+```python
+pd.cut(df['age'], bins=[0, 18, 35, 60, np.inf], labels=['Minor', 'Young', 'Adult', 'Senior'])
+# last bin is (60, ∞] — captures everything above 60
+```
+
+---
+
+## Indexing and Selection
+
+### `df[mask, 'col']` doesn't work — use `.loc`
 
 Plain `[]` only accepts one thing at a time — a mask **or** a column name, not both:
 
@@ -47,7 +119,7 @@ np.mean(res.loc[res['is_api'], ['status_code']] >= 400)  # Series with one value
 
 ---
 
-## `.loc` vs `.iloc` — label vs position
+### `.loc` vs `.iloc` — label vs position
 
 `.loc` is **label-based** — the row selector can be an index label, a boolean mask, or a slice of labels. The second argument selects columns by name:
 
@@ -105,320 +177,7 @@ mpg1.loc[mpg1['cylinders'] > 4, 'origin']
 
 ---
 
-## Negating a boolean — `~` vs `not` vs `!`
-
-| Operator | Use case |
-|---|---|
-| `~` | Negate a **boolean Series or array** (element-wise) |
-| `not` | Negate a **single scalar** boolean |
-| `!` | Doesn't exist in Python |
-
-```python
-# Series — use ~
-~df['is_alone']
-~(df['fare'] > 50)
-
-# Scalar — use not
-not True          # False
-
-# Inside .apply() lambda — scalars, so use not
-df['col'].apply(lambda x: 'yes' if not x else 'no')
-```
-
-`!` is from JavaScript/C — it does not work in Python.
-
----
-
-## Boolean filtering — operator precedence
-
-`&` and `|` bind tighter than comparison operators like `>`, `<`, `==`. Always wrap each condition in parentheses:
-
-```python
-# Wrong — evaluates as: products['rating'] > (4.0 & products['in_stock'])
-products[products['rating'] > 4.0 & products['in_stock']]
-
-# Correct
-products[(products['rating'] > 4.0) & (products['in_stock'])]
-```
-
----
-
-## Counting nulls and finding NaN locations
-
-```python
-df.isnull().sum()        # nulls per column (default)
-df.isnull().sum(axis=1)  # nulls per row
-```
-
-**Dropping rows with nulls — `dropna()`:**
-
-```python
-df.dropna()                                        # drop rows with NaN in ANY column
-df.dropna(subset=['orbital_period', 'mass'])       # drop if EITHER column is NaN (default: how='any')
-df.dropna(subset=['orbital_period', 'mass'], how='all')  # drop only if BOTH are NaN
-```
-
-**Finding the index labels of NaN values:**
-
-```python
-# Series — index labels where value is NaN:
-s.index[s.isna()]
-
-# DataFrame — which rows have any NaN:
-df.index[df.isna().any(axis=1)]
-
-# DataFrame — which columns have any NaN:
-df.columns[df.isna().any(axis=0)]
-
-# DataFrame — exact (row, col) pairs with NaN (useful for pivot tables):
-[(r, c) for r in df.index for c in df.columns if pd.isna(df.loc[r, c])]
-```
-
----
-
-## NumPy functions vs array methods
-
-Some operations are available both as NumPy functions and as array methods — they do the same thing:
-
-```python
-arr.mean()       # method
-np.mean(arr)     # function — same result
-```
-
-Basic stats available as both: `mean`, `sum`, `std`, `min`, `max`
-
-More advanced operations are function-only (no array method):
-```python
-np.median(arr)
-np.percentile(arr, 75)
-np.unique(arr)
-np.where(condition, true_val, false_val)
-```
-
----
-
-## NaN-safe NumPy functions
-
-When working with plain NumPy arrays that contain NaN, use the `nan`-prefixed versions:
-
-```python
-np.nanmean(arr)
-np.nanmedian(arr)
-np.nanstd(arr)
-```
-
-These ignore NaN values instead of returning nan.
-
-**Series vs plain array — important difference:**
-
-```python
-np.mean(df['col'])             # skips NaN — Series handles it
-np.mean(df['col'].to_numpy())  # returns NaN — plain array doesn't
-```
-
-Converting to a plain array loses pandas' NaN-handling behavior.
-
----
-
-## `np.where` — compact if/else for arrays
-
-Works like a vectorized if/else — operates on the entire array at once:
-
-```python
-np.where(condition, value_if_true, value_if_false)
-
-# Example
-np.where(sensors['reading'] > 80, True, False)
-```
-
-Similar idea to lambda + apply, but faster because it's vectorized:
-```python
-# lambda equivalent (slower, element by element)
-sensors['reading'].apply(lambda x: True if x > 80 else False)
-```
-
----
-
-## `pd.cut()` — right-inclusive bins
-
-`pd.cut()` bins are **right-inclusive** (closed on the right) by default:
-
-```python
-pd.cut(age, bins=[0, 17, 35, 60, 100], labels=['Minor', 'Young Adult', 'Adult', 'Senior'])
-# bins are (0, 17], (17, 35], (35, 60], (60, 100]
-# age=17 → 'Minor', age=35 → 'Young Adult'
-```
-
-The left edge is excluded, the right edge is included. Keep this in mind when setting bin boundaries.
-
-Use `np.inf` as the upper bound when the last bin has no upper limit:
-
-```python
-pd.cut(df['age'], bins=[0, 18, 35, 60, np.inf], labels=['Minor', 'Young', 'Adult', 'Senior'])
-# last bin is (60, ∞] — captures everything above 60
-```
-
----
-
-## `pd.pivot_table()` default aggfunc
-
-`pd.pivot_table()` uses `aggfunc='mean'` by default — you don't need to specify it unless you want something else:
-
-```python
-pd.pivot_table(df, values='tip_pct', index='sex', columns='day')               # mean (default)
-pd.pivot_table(df, values='tip_pct', index='sex', columns='day', aggfunc='sum')
-pd.pivot_table(df, values='tip_pct', index='sex', columns='day', aggfunc='count')
-```
-
-**Counting rows — `'count'` vs `'size'`:**
-
-```python
-aggfunc='count'   # counts non-NaN values in the `values` column — skips NaN
-aggfunc='size'    # counts all rows in each group, including NaN
-```
-
-Use `'size'` when you want the true number of rows per group. Use `'count'` when you want to know how many rows have a non-null value. They give the same result if your `values` column has no nulls.
-
-`groupby()` can produce the same values but returns a Series instead of a 2D table:
-
-```python
-df.groupby(['sex', 'day'])['tip_pct'].mean()                       # Series — same numbers, flat format
-pd.pivot_table(df, values='tip_pct', index='sex', columns='day')   # 2D table — easier to read
-```
-
----
-
-## `pivot_table()` — NaN handling
-
-**NaN values in the data** are ignored by default when computing the mean (equivalent to `skipna=True`). There's no `skipna` argument — to change this, pass a custom `aggfunc`:
-
-```python
-tips.pivot_table(index='day', columns='time', values='tip_pct',
-                 aggfunc=lambda x: x.mean(skipna=False))
-```
-
-**`dropna` parameter** — controls whether all-NaN *columns* are kept in the output, not whether NaNs in the data are skipped:
-
-```python
-pivot_table(..., dropna=True)   # default — drops columns where every cell is NaN
-pivot_table(..., dropna=False)  # keeps those all-NaN columns
-```
-
-**`fill_value` parameter** — replaces NaN *result* cells after aggregation (doesn't affect the mean calculation):
-
-```python
-pivot_table(..., fill_value=0)
-```
-
----
-
-## `groupby().transform()` vs `groupby().apply()`
-
-Both operate group-by-group, but they return different shapes:
-
-| | `apply()` | `transform()` |
-|---|---|---|
-| Output size | One row per group (reduced) | Same length as original DataFrame |
-| Use case | Summarize each group | Add a per-group value back to each row |
-
-**`apply()` — reduces to one result per group:**
-```python
-df.groupby('category')['price'].apply(np.mean)
-# category
-# A    15.0
-# B    22.0
-# dtype: float64
-```
-
-**`transform()` — broadcasts the group result back to every row:**
-```python
-df['category_avg'] = df.groupby('category')['price'].transform('mean')
-# Every row gets its group's mean — same length as df
-```
-
-`transform()` is the right tool when you want to add a group-level stat as a new column (e.g. group mean, group rank, normalized values within a group). Use `apply()` when you want a summary.
-
----
-
-## `observed=True` — when and where to use it
-
-When a `category` column is used to group or reshape data, pandas by default includes **all possible categories** — even ones with no data. This causes phantom empty rows/columns and a `FutureWarning`.
-
-**Rule: add `observed=True` any time a `category` column is used as a grouping key.**
-
-This applies to three places:
-
-**`groupby()`:**
-```python
-df.groupby('size', observed=True)['price'].mean()   # only real groups
-```
-
-**`pivot_table()`** — when `index` or `columns` are categorical:
-```python
-df.pivot_table(index='cut', columns='color', values='price', observed=True)
-```
-
-**`transform()` inside `groupby()`:**
-```python
-df.groupby('sex', observed=True)['tip'].transform('mean')
-```
-
-Without `observed=True` you get NaN rows/columns for categories that don't appear in the data, plus a `FutureWarning` that will become an error in a future pandas version.
-
----
-
-## Mapping a grouped result back to a DataFrame
-
-After a `groupby().apply()`, the result is a Series indexed by the group key. Use `.map()` to add it back as a column:
-
-```python
-gpa = merged.groupby('student_id').apply(
-    lambda g: np.dot(g['score'], g['credits']) / g['credits'].sum()
-)
-
-students['gpa'] = students['student_id'].map(gpa)
-```
-
-`.map(series)` looks up each value in `student_id` against the Series index and fills in the corresponding value.
-
----
-
-## When to use `.to_numpy()`
-
-Usually you don't need it — NumPy functions and pandas operations accept Series directly.
-
-Only convert when:
-- A library requires a plain array
-- Using `np.dot()` or matrix operations where the index causes issues
-- Something breaks and you suspect the index is the cause
-- **Positional indexing with an array of indices** (e.g. after `np.argsort()`)
-
-**Label vs positional indexing:**
-```python
-aa = np.argsort(sales['revenue'])
-
-sales['rep'][aa]            # label-based — works only if index is 0,1,2,3...
-sales['rep'].to_numpy()[aa] # positional — always reliable
-```
-
-If the DataFrame has been filtered and the index is no longer `0, 1, 2...`, the first version gives wrong results or a KeyError. Always use `.to_numpy()` when indexing with an array of positions.
-
-**Concrete example — why it breaks:**
-```python
-df = pd.DataFrame({
-    'name':   ['Alice', 'Bob', 'Carol', 'Dave'],
-    'salary': [3000, 1000, 4000, 2000],
-}, index=[10, 11, 12, 13])  # non-default index
-
-aa = np.argsort(df['salary'])  # → [1, 3, 0, 2]  (positions)
-
-df['name'][aa]            # looks for labels 1, 3, 0, 2 → KeyError!
-df['name'].to_numpy()[aa] # looks for positions 1, 3, 0, 2 → correct
-```
-
----
-
-## MultiIndex — set, sort, and slice
+### MultiIndex — set, sort, and slice
 
 **Creating a MultiIndex:**
 ```python
@@ -455,30 +214,248 @@ for region in df.index.get_level_values('region').unique():
 
 ---
 
-## Re-grouping a MultiIndex result with `groupby(level=)`
+### `.xs()` — cross-section of a MultiIndex
 
-After a multi-column `groupby`, the result has a **MultiIndex**. You can group it again using `level=` to operate within each top-level group.
+`.xs()` pulls out a slice of a MultiIndex DataFrame or Series by specifying a value at a given level:
 
-**Use case — find the best category per region:**
 ```python
-# Step 1: sum revenue by region+category → MultiIndex Series
-totals = ecommerce.groupby(['region', 'category'])['revenue'].sum()
-
-# Step 2: re-group by level=0 (region), then idxmax within each region
-totals.groupby(level=0).idxmax()
-# North    ('North', 'Electronics')
-# South    ('South', 'Home')
-# ...
+df.xs('Mar', level=1)        # all rows where the second index level == 'Mar'
+df.xs('Mar', level='month')  # same, using the level name
 ```
 
-- `level=0` → first index level (region)
-- `level=1` → second index level (category)
+After `web.stack()`, the MultiIndex is `(country, month)`:
+```python
+traffic_long = web.stack().to_frame('visits')
+traffic_long.xs('Mar', level=1)        # all March rows across every country
+traffic_long.xs('Brazil', level=0)     # all rows for Brazil across every month
+```
 
-Compare to just `.idxmax()` with no re-groupby — that returns a single global max tuple, not one per region.
+`.xs()` is cleaner than `pd.IndexSlice` when you're slicing a single value from one level and want all values from the other level.
+
+**Selecting both levels at once with a tuple:**
+```python
+# Two chained .xs() calls:
+df.xs(2, level='pclass').xs('female', level='sex')
+
+# Same thing in one call — pass a tuple:
+df.xs((2, 'female'))
+```
+
+**`.xs()` requires a MultiIndex — it doesn't work on plain column indexes:**
+```python
+# sales_wide has a plain column index (month names) — .xs() won't work
+sales_wide.xs('Mar', axis=1)   # TypeError: Index must be a MultiIndex
+
+# Just use direct column selection instead
+sales_wide['Mar']              # correct
+```
+
+`.xs(key, axis=1)` only makes sense when the *columns* form a MultiIndex (e.g. after `stack()` + `unstack()` produces multi-level columns).
 
 ---
 
-## `groupby().agg()` with all numeric columns
+### `groupby('name')` vs `groupby(level='name')` — columns vs index levels
+
+When you call `groupby('city')`, pandas looks for a **column** named `'city'` first. If it doesn't find one, it falls back to checking index level names.
+
+This means `groupby('city')` can accidentally work after `set_index(['city', 'month'])` — because there's no longer a column called `'city'`, so pandas falls back to the index level.
+
+Use `groupby(level='city')` to be explicit and unambiguous:
+
+```python
+# After set_index(['city', 'month']):
+weather.groupby('city')['temp'].max()         # works by coincidence — city is no longer a column
+weather.groupby(level='city')['temp'].max()   # explicit — always means the index level
+```
+
+The difference matters if a column and an index level share the same name — pandas would group by the column, not the level.
+
+---
+
+## Boolean Operations and Filtering
+
+### Negating a boolean — `~` vs `not` vs `!`
+
+| Operator | Use case |
+|---|---|
+| `~` | Negate a **boolean Series or array** (element-wise) |
+| `not` | Negate a **single scalar** boolean |
+| `!` | Doesn't exist in Python |
+
+```python
+# Series — use ~
+~df['is_alone']
+~(df['fare'] > 50)
+
+# Scalar — use not
+not True          # False
+
+# Inside .apply() lambda — scalars, so use not
+df['col'].apply(lambda x: 'yes' if not x else 'no')
+```
+
+`!` is from JavaScript/C — it does not work in Python.
+
+---
+
+### Boolean filtering — operator precedence
+
+`&` and `|` bind tighter than comparison operators like `>`, `<`, `==`. Always wrap each condition in parentheses:
+
+```python
+# Wrong — evaluates as: products['rating'] > (4.0 & products['in_stock'])
+products[products['rating'] > 4.0 & products['in_stock']]
+
+# Correct
+products[(products['rating'] > 4.0) & (products['in_stock'])]
+```
+
+---
+
+### Counting nulls and finding NaN locations
+
+```python
+df.isnull().sum()        # nulls per column (default)
+df.isnull().sum(axis=1)  # nulls per row
+```
+
+**Dropping rows with nulls — `dropna()`:**
+
+```python
+df.dropna()                                        # drop rows with NaN in ANY column
+df.dropna(subset=['orbital_period', 'mass'])       # drop if EITHER column is NaN (default: how='any')
+df.dropna(subset=['orbital_period', 'mass'], how='all')  # drop only if BOTH are NaN
+```
+
+**Finding the index labels of NaN values:**
+
+```python
+# Series — index labels where value is NaN:
+s.index[s.isna()]
+
+# DataFrame — which rows have any NaN:
+df.index[df.isna().any(axis=1)]
+
+# DataFrame — which columns have any NaN:
+df.columns[df.isna().any(axis=0)]
+
+# DataFrame — exact (row, col) pairs with NaN (useful for pivot tables):
+[(r, c) for r in df.index for c in df.columns if pd.isna(df.loc[r, c])]
+```
+
+---
+
+## Sorting
+
+### `sort_values()` vs `sort_index()`
+
+- **`sort_values()`** — sorts by the **data** in a column
+- **`sort_index()`** — sorts by the **index labels**
+
+```python
+s = pd.Series([30, 10, 20], index=['b', 'c', 'a'])
+
+s.sort_values()
+# c    10
+# a    20
+# b    30
+
+s.sort_index()
+# a    20
+# b    30
+# c    10
+```
+
+**Common use case:** after a `groupby`, the index is the group keys — `sort_index()` alphabetizes the groups, `sort_values()` ranks them by their aggregated value.
+
+---
+
+## GroupBy and Aggregation
+
+### `groupby().transform()` vs `groupby().apply()`
+
+Both operate group-by-group, but they return different shapes:
+
+| | `apply()` | `transform()` |
+|---|---|---|
+| Output size | One row per group (reduced) | Same length as original DataFrame |
+| Use case | Summarize each group | Add a per-group value back to each row |
+
+**`apply()` — reduces to one result per group:**
+```python
+df.groupby('category')['price'].apply(np.mean)
+# category
+# A    15.0
+# B    22.0
+# dtype: float64
+```
+
+**`transform()` — broadcasts the group result back to every row:**
+```python
+df['category_avg'] = df.groupby('category')['price'].transform('mean')
+# Every row gets its group's mean — same length as df
+```
+
+`transform()` is the right tool when you want to add a group-level stat as a new column (e.g. group mean, group rank, normalized values within a group). Use `apply()` when you want a summary.
+
+---
+
+### `observed=True` — when and where to use it
+
+When a `category` column is used to group or reshape data, pandas by default includes **all possible categories** — even ones with no data. This causes phantom empty rows/columns and a `FutureWarning`.
+
+**Rule: add `observed=True` any time a `category` column is used as a grouping key.**
+
+This applies to three places:
+
+**`groupby()`:**
+```python
+df.groupby('size', observed=True)['price'].mean()   # only real groups
+```
+
+**`pivot_table()`** — when `index` or `columns` are categorical:
+```python
+df.pivot_table(index='cut', columns='color', values='price', observed=True)
+```
+
+**`transform()` inside `groupby()`:**
+```python
+df.groupby('sex', observed=True)['tip'].transform('mean')
+```
+
+Without `observed=True` you get NaN rows/columns for categories that don't appear in the data, plus a `FutureWarning` that will become an error in a future pandas version.
+
+---
+
+### `groupby()` on a Series — passing an external grouper
+
+You can call `.groupby()` directly on a Series, passing another Series as the grouping key:
+
+```python
+s.groupby(another_series)
+```
+
+As long as both Series share the same index, pandas lines them up and groups `s` by the values in `another_series`. This is equivalent to grouping on a DataFrame column:
+
+```python
+# Form 1 — groupby on a DataFrame (common)
+diamonds.groupby('color')['cut'].something()
+
+# Form 2 — groupby on a Series, grouper passed externally
+diamonds['cut'].groupby(diamonds['color']).something()
+```
+
+The two forms produce the same result. Form 2 is useful when the Series being grouped has already been transformed (e.g. into booleans) and you don't want to add it as a column first:
+
+```python
+# Fraction of rows with cut >= 'Very Good', per color group
+# (works because 'cut' is an ordered category)
+(diamonds['cut'] >= 'Very Good').groupby(diamonds['color']).mean()
+```
+
+---
+
+### `groupby().agg()` with all numeric columns
 
 `groupby().agg()` fails on non-numeric columns (e.g. strings). Use `select_dtypes` to limit to numeric columns first:
 
@@ -513,25 +490,65 @@ Compare to passing a list like `['sum', 'mean']` — that applies every stat to 
 
 ---
 
-## Avoiding SettingWithCopyWarning — `.copy()`
+### Mapping a grouped result back to a DataFrame
 
-When you slice a DataFrame (e.g. with `.xs()`, `.loc[]`, boolean filter), the result may be a **view**, not a new DataFrame. Assigning to it raises a `SettingWithCopyWarning`:
-
-```python
-q3 = sales_q.xs('Q3', level='quarter')
-q3['total'] = q3['revenue'] * q3['units']  # SettingWithCopyWarning
-```
-
-Fix: call `.copy()` to make it an independent DataFrame:
+After a `groupby().apply()`, the result is a Series indexed by the group key. Use `.map()` to add it back as a column:
 
 ```python
-q3 = sales_q.xs('Q3', level='quarter').copy()
-q3['total'] = q3['revenue'] * q3['units']  # no warning
+gpa = merged.groupby('student_id').apply(
+    lambda g: np.dot(g['score'], g['credits']) / g['credits'].sum()
+)
+
+students['gpa'] = students['student_id'].map(gpa)
 ```
+
+`.map(series)` looks up each value in `student_id` against the Series index and fills in the corresponding value.
 
 ---
 
-## `.stack()` returns a Series, not a DataFrame
+### Survival rate — use `.mean()` on a 0/1 column
+
+For a 0/1 column like `survived`, `.mean()` gives the fraction directly — no need for `.apply()`:
+
+```python
+titanic.groupby(['sex', 'pclass'])['survived'].mean()
+```
+
+Avoid this pattern:
+```python
+titanic.groupby(['sex', 'pclass']).apply(lambda x: x['survived'].sum() / x.agg('count'))
+```
+
+`x.agg('count')` returns a count *per column*, so dividing a scalar by a Series duplicates the survival rate across every column — the output looks like a full DataFrame but is just noise.
+
+---
+
+### Re-grouping a MultiIndex result with `groupby(level=)`
+
+After a multi-column `groupby`, the result has a **MultiIndex**. You can group it again using `level=` to operate within each top-level group.
+
+**Use case — find the best category per region:**
+```python
+# Step 1: sum revenue by region+category → MultiIndex Series
+totals = ecommerce.groupby(['region', 'category'])['revenue'].sum()
+
+# Step 2: re-group by level=0 (region), then idxmax within each region
+totals.groupby(level=0).idxmax()
+# North    ('North', 'Electronics')
+# South    ('South', 'Home')
+# ...
+```
+
+- `level=0` → first index level (region)
+- `level=1` → second index level (category)
+
+Compare to just `.idxmax()` with no re-groupby — that returns a single global max tuple, not one per region.
+
+---
+
+## Reshaping
+
+### `.stack()` returns a Series, not a DataFrame
 
 `.stack()` folds columns into rows — the result is a **Series** with a MultiIndex, not a DataFrame:
 
@@ -549,86 +566,200 @@ energy_long['log_kwh'] = np.log(energy_long['kwh']) # can add columns now
 
 ---
 
-## `groupby('name')` vs `groupby(level='name')` — columns vs index levels
+### `.unstack(level)` — choosing which level becomes columns
 
-When you call `groupby('city')`, pandas looks for a **column** named `'city'` first. If it doesn't find one, it falls back to checking index level names.
+With no argument, `.unstack()` moves the **last (innermost)** index level into the columns by default.
 
-This means `groupby('city')` can accidentally work after `set_index(['city', 'month'])` — because there's no longer a column called `'city'`, so pandas falls back to the index level.
-
-Use `groupby(level='city')` to be explicit and unambiguous:
+Pass a level name or position to control which level moves:
 
 ```python
-# After set_index(['city', 'month']):
-weather.groupby('city')['temp'].max()         # works by coincidence — city is no longer a column
-weather.groupby(level='city')['temp'].max()   # explicit — always means the index level
+# After groupby + stack, MultiIndex is (species, measurement)
+s = iris.groupby('species')[cols].mean().stack()
+
+s.unstack('species')      # → rows = measurements, columns = species
+s.unstack('measurement')  # → rows = species, columns = measurements (same as default)
+s.unstack()               # → moves last level (measurement) into columns — same as above
 ```
 
-The difference matters if a column and an index level share the same name — pandas would group by the column, not the level.
+Use the level name to be explicit about what you want in the rows vs columns.
 
 ---
 
-## `sort_values()` vs `sort_index()`
+### `pivot` vs `pivot_table`
 
-- **`sort_values()`** — sorts by the **data** in a column
-- **`sort_index()`** — sorts by the **index labels**
+**`pivot`** — simple reshaping, no aggregation:
+- Each (index, column) combination must be **unique** — no duplicates allowed
+- Just restructures the data, no math involved
 
 ```python
-s = pd.Series([30, 10, 20], index=['b', 'c', 'a'])
-
-s.sort_values()
-# c    10
-# a    20
-# b    30
-
-s.sort_index()
-# a    20
-# b    30
-# c    10
+df.pivot(index='date', columns='city', values='temp')
 ```
 
-**Common use case:** after a `groupby`, the index is the group keys — `sort_index()` alphabetizes the groups, `sort_values()` ranks them by their aggregated value.
+**`pivot_table`** — when you need to **aggregate** duplicates:
+- Multiple rows share the same (index, column) pair → needs `aggfunc` to combine them
+- Defaults to `aggfunc='mean'`
+
+```python
+df.pivot_table(index='region', columns='category', values='sales', aggfunc='sum')
+```
+
+**Quick rule:** Ask "could there be duplicate (index, column) pairs in my data?"
+- No → `pivot`
+- Yes → `pivot_table`
+
+If you use `pivot` on duplicate data, it raises a `ValueError`.
 
 ---
 
-## DateTime operations with `.dt`
+### `pd.pivot_table()` default aggfunc
 
-Convert a string column to datetime, then use the `.dt` accessor to extract parts:
+`pd.pivot_table()` uses `aggfunc='mean'` by default — you don't need to specify it unless you want something else:
 
 ```python
-df['hire_date'] = pd.to_datetime(df['hire_date'])
-
-df['year']  = df['hire_date'].dt.year
-df['month'] = df['hire_date'].dt.month
+pd.pivot_table(df, values='tip_pct', index='sex', columns='day')               # mean (default)
+pd.pivot_table(df, values='tip_pct', index='sex', columns='day', aggfunc='sum')
+pd.pivot_table(df, values='tip_pct', index='sex', columns='day', aggfunc='count')
 ```
 
-**Calculating days since a date:**
+**Counting rows — `'count'` vs `'size'`:**
 
 ```python
-df['tenure_days'] = (pd.Timestamp('today') - df['hire_date']).dt.days
+aggfunc='count'   # counts non-NaN values in the `values` column — skips NaN
+aggfunc='size'    # counts all rows in each group, including NaN
 ```
 
-Subtracting two datetime columns gives a `Timedelta` — `.dt.days` converts it to an integer.
+Use `'size'` when you want the true number of rows per group. Use `'count'` when you want to know how many rows have a non-null value. They give the same result if your `values` column has no nulls.
 
-**Summarise with NumPy:**
-
-```python
-np.mean(df['tenure_days'])
-np.median(df['tenure_days'])
-```
-
-**Extracting hours from a Timedelta Series — use `.dt.total_seconds()`:**
-
-Subtracting two datetime columns gives a Timedelta Series. To get the difference in hours, you need `.dt` (required for any time component on a Series) and `.total_seconds()` — `.hour` doesn't exist on Timedelta:
+`groupby()` can produce the same values but returns a Series instead of a 2D table:
 
 ```python
-# Wrong — .hour doesn't exist on Timedelta, and .dt is missing
-(flights['arrive_utc'] - flights['depart_utc']).hour       # AttributeError
-
-# Correct
-(flights['arrive_utc'] - flights['depart_utc']).dt.total_seconds() / 3600
+df.groupby(['sex', 'day'])['tip_pct'].mean()                       # Series — same numbers, flat format
+pd.pivot_table(df, values='tip_pct', index='sex', columns='day')   # 2D table — easier to read
 ```
 
 ---
+
+### `pivot_table()` — NaN handling
+
+**NaN values in the data** are ignored by default when computing the mean (equivalent to `skipna=True`). There's no `skipna` argument — to change this, pass a custom `aggfunc`:
+
+```python
+tips.pivot_table(index='day', columns='time', values='tip_pct',
+                 aggfunc=lambda x: x.mean(skipna=False))
+```
+
+**`dropna` parameter** — controls whether all-NaN *columns* are kept in the output, not whether NaNs in the data are skipped:
+
+```python
+pivot_table(..., dropna=True)   # default — drops columns where every cell is NaN
+pivot_table(..., dropna=False)  # keeps those all-NaN columns
+```
+
+**`fill_value` parameter** — replaces NaN *result* cells after aggregation (doesn't affect the mean calculation):
+
+```python
+pivot_table(..., fill_value=0)
+```
+
+---
+
+## NumPy
+
+### Functions vs array methods
+
+Some operations are available both as NumPy functions and as array methods — they do the same thing:
+
+```python
+arr.mean()       # method
+np.mean(arr)     # function — same result
+```
+
+Basic stats available as both: `mean`, `sum`, `std`, `min`, `max`
+
+More advanced operations are function-only (no array method):
+```python
+np.median(arr)
+np.percentile(arr, 75)
+np.unique(arr)
+np.where(condition, true_val, false_val)
+```
+
+---
+
+### NaN-safe NumPy functions
+
+When working with plain NumPy arrays that contain NaN, use the `nan`-prefixed versions:
+
+```python
+np.nanmean(arr)
+np.nanmedian(arr)
+np.nanstd(arr)
+```
+
+These ignore NaN values instead of returning nan.
+
+**Series vs plain array — important difference:**
+
+```python
+np.mean(df['col'])             # skips NaN — Series handles it
+np.mean(df['col'].to_numpy())  # returns NaN — plain array doesn't
+```
+
+Converting to a plain array loses pandas' NaN-handling behavior.
+
+---
+
+### `np.where` — compact if/else for arrays
+
+Works like a vectorized if/else — operates on the entire array at once:
+
+```python
+np.where(condition, value_if_true, value_if_false)
+
+# Example
+np.where(sensors['reading'] > 80, True, False)
+```
+
+Similar idea to lambda + apply, but faster because it's vectorized:
+```python
+# lambda equivalent (slower, element by element)
+sensors['reading'].apply(lambda x: True if x > 80 else False)
+```
+
+---
+
+### When to use `.to_numpy()`
+
+Usually you don't need it — NumPy functions and pandas operations accept Series directly.
+
+Only convert when:
+- A library requires a plain array
+- Using `np.dot()` or matrix operations where the index causes issues
+- Something breaks and you suspect the index is the cause
+- **Positional indexing with an array of indices** (e.g. after `np.argsort()`)
+
+**Label vs positional indexing:**
+```python
+aa = np.argsort(sales['revenue'])
+
+sales['rep'][aa]            # label-based — works only if index is 0,1,2,3...
+sales['rep'].to_numpy()[aa] # positional — always reliable
+```
+
+If the DataFrame has been filtered and the index is no longer `0, 1, 2...`, the first version gives wrong results or a KeyError. Always use `.to_numpy()` when indexing with an array of positions.
+
+**Concrete example — why it breaks:**
+```python
+df = pd.DataFrame({
+    'name':   ['Alice', 'Bob', 'Carol', 'Dave'],
+    'salary': [3000, 1000, 4000, 2000],
+}, index=[10, 11, 12, 13])  # non-default index
+
+aa = np.argsort(df['salary'])  # → [1, 3, 0, 2]  (positions)
+
+df['name'][aa]            # looks for labels 1, 3, 0, 2 → KeyError!
+df['name'].to_numpy()[aa] # looks for positions 1, 3, 0, 2 → correct
+```
 
 This also happens after `.dropna()`, `.drop_duplicates()`, or any filter — the index keeps the original row numbers, so it's no longer `0, 1, 2...`:
 ```python
@@ -648,7 +779,7 @@ This happens whenever the Series index doesn't match the DataFrame index — com
 
 ---
 
-## FutureWarning — what it means
+### FutureWarning — `np.argmax` and ambiguous indexing
 
 pandas releases new versions over time and sometimes changes how things behave. A `FutureWarning` means:
 
@@ -682,39 +813,44 @@ This is the `np.argmax` equivalent of `.idxmax()` — use it when you want the l
 
 ---
 
-## `.apply()` — if/else inside a lambda
+### Finding the max-value key in a dict
 
-Inside `.apply()`, each value is a **scalar**, so use `if/else` — not `np.where`:
+`list(d.keys())[np.argmax(list(d.values()))]` works but is roundabout — `np.argmax` is meant for arrays, not dicts.
+
+Use `max()` with `key=` instead:
 
 ```python
-# Series-level (element-wise):
-df['col'].apply(lambda x: 'Premium' if x > 50 else 'Standard')
-
-# Row-level (axis=1), multi-condition:
-df.apply(lambda row: 'High'   if row['age'] > 60 and row['severity'] > 7
-                else 'Medium' if row['age'] > 60 or  row['severity'] > 7
-                else 'Low', axis=1)
+max(meang, key=meang.get)   # returns the key with the highest value
 ```
 
-`&`/`|` also work on boolean scalars and give correct results — but `and`/`or` is the more natural Python style inside a lambda.
+`max()` iterates over the dict's keys and uses `.get` to look up each value. Cleaner, no index arithmetic, no list conversion.
 
-`np.where` is for whole Series/arrays — don't nest it inside `.apply()`.
+Use `np.argmax` when working with arrays or Series. For dict lookups, `max(..., key=...)` is the right tool.
 
-**When to use `.apply()` with `DateOffset` vs vectorized:**
+**Even cleaner — wrap in `pd.Series` and use `.idxmax()`:**
 
-`DateOffset` works element-wise on a Series — use vectorized when the offset is fixed:
+When collecting group stats into a dict (e.g. `np.nanmean` per column), skip the loop entirely with a dict comprehension, wrap in `pd.Series`, then call `.idxmax()`:
+
 ```python
-df['review_date'] = df['deadline'] - pd.DateOffset(weeks=2)   # fixed offset — no .apply() needed
+# Less clean — dict loop + max()
+y = {}
+for c in revenue.columns:
+    cy = al[c + '_yoy']
+    y[c] = np.nanmean(cy)
+max(y, key=y.get)
+
+# Cleaner — dict comprehension + pd.Series + .idxmax()
+y = pd.Series({c: np.nanmean(al[c+'_yoy']) for c in revenue.columns})
+y.idxmax()
 ```
 
-Use `.apply(axis=1)` only when the offset varies per row:
-```python
-df['deadline'] = df.apply(lambda row: row['start'] + pd.DateOffset(weeks=row['duration']), axis=1)
-```
+Use `np.nanmean` here (not `np.mean`) because YoY columns have NaN for the first N rows where no prior-year data exists.
 
 ---
 
-## `.str.contains()` and `.str.extract()` — regex string matching
+## String Operations
+
+### `.str.contains()` and `.str.extract()` — regex matching
 
 **`.str.contains(pattern)`** — returns a boolean Series: True where the string matches.
 ```python
@@ -774,7 +910,7 @@ df['port'] = df['embarked'].map(port_map)
 
 ---
 
-## `.str` — slicing and extracting substrings
+### `.str` — slicing and substring extraction
 
 `.str` applies string/sequence operations element-wise across a Series. It works on both strings and lists — so after `.str.split()`, each element is a list, and `.str[i]` picks index `i` from each one:
 
@@ -790,14 +926,6 @@ This is the vectorized shorthand for `.apply(lambda x: x[2])`.
 s.str[1:]    # drop the first character: 'E03' → '03'
 s.str[:3]    # first 3 characters
 ```
-
-To extract digits (or any pattern) with regex:
-
-```python
-s.str.extract(r'(\d+)')[0]   # pull out the numeric part: 'E03' → '03'
-```
-
-Use slicing when the structure is fixed (e.g. always one prefix character). Use `.str.extract()` when the position varies and you need a pattern match.
 
 **Vectorized string concatenation with `+`:**
 
@@ -838,7 +966,7 @@ Cleaner than `(.+)(?: +)`, which is greedy and can leave trailing spaces in the 
 
 ---
 
-## `len()` vs `.str.len()`
+### `len()` vs `.str.len()`
 
 In base Python, `len()` is a built-in function — always call it as `len(x)`, never as a method:
 
@@ -856,7 +984,9 @@ df['col'].str.split().str.len()      # length of each resulting list
 
 Never write `.len()` on a plain Python object — it will raise `AttributeError`.
 
-## `.str` and `.contains()` — pandas only, not plain Python strings
+---
+
+### `.str` and `.contains()` — pandas only, not plain Python strings
 
 `.str` and `.contains()` only exist on pandas Series. Plain Python strings use different syntax:
 
@@ -877,7 +1007,7 @@ Common mistake — iterating over columns gives plain strings, not a Series:
 
 ---
 
-## Regex — pandas `.str` vs plain Python `re`
+### Regex — pandas `.str` vs plain Python `re`
 
 The regex syntax (patterns) is identical in both. The difference is the API.
 
@@ -902,156 +1032,219 @@ Use `re` when working with a single string outside a DataFrame. Use `.str` metho
 
 ---
 
-## `pivot` vs `pivot_table`
+## DateTime
 
-**`pivot`** — simple reshaping, no aggregation:
-- Each (index, column) combination must be **unique** — no duplicates allowed
-- Just restructures the data, no math involved
+### DateTime operations with `.dt`
+
+Convert a string column to datetime, then use the `.dt` accessor to extract parts:
 
 ```python
-df.pivot(index='date', columns='city', values='temp')
+df['hire_date'] = pd.to_datetime(df['hire_date'])
+
+df['year']  = df['hire_date'].dt.year
+df['month'] = df['hire_date'].dt.month
 ```
 
-**`pivot_table`** — when you need to **aggregate** duplicates:
-- Multiple rows share the same (index, column) pair → needs `aggfunc` to combine them
-- Defaults to `aggfunc='mean'`
+**Calculating days since a date:**
 
 ```python
-df.pivot_table(index='region', columns='category', values='sales', aggfunc='sum')
+df['tenure_days'] = (pd.Timestamp('today') - df['hire_date']).dt.days
 ```
 
-**Quick rule:** Ask "could there be duplicate (index, column) pairs in my data?"
-- No → `pivot`
-- Yes → `pivot_table`
+Subtracting two datetime columns gives a `Timedelta` — `.dt.days` converts it to an integer.
 
-If you use `pivot` on duplicate data, it raises a `ValueError`.
-
----
-
-## `.xs()` — cross-section of a MultiIndex
-
-`.xs()` pulls out a slice of a MultiIndex DataFrame or Series by specifying a value at a given level:
+**Summarise with NumPy:**
 
 ```python
-df.xs('Mar', level=1)        # all rows where the second index level == 'Mar'
-df.xs('Mar', level='month')  # same, using the level name
+np.mean(df['tenure_days'])
+np.median(df['tenure_days'])
 ```
 
-After `web.stack()`, the MultiIndex is `(country, month)`:
-```python
-traffic_long = web.stack().to_frame('visits')
-traffic_long.xs('Mar', level=1)        # all March rows across every country
-traffic_long.xs('Brazil', level=0)     # all rows for Brazil across every month
-```
+**Extracting hours from a Timedelta Series — use `.dt.total_seconds()`:**
 
-`.xs()` is cleaner than `pd.IndexSlice` when you're slicing a single value from one level and want all values from the other level.
-
-**Selecting both levels at once with a tuple:**
-```python
-# Two chained .xs() calls:
-df.xs(2, level='pclass').xs('female', level='sex')
-
-# Same thing in one call — pass a tuple:
-df.xs((2, 'female'))
-```
-
-The tuple version is shorter when you want a specific combination across multiple levels.
-
-**`.xs()` requires a MultiIndex — it doesn't work on plain column indexes:**
-```python
-# sales_wide has a plain column index (month names) — .xs() won't work
-sales_wide.xs('Mar', axis=1)   # TypeError: Index must be a MultiIndex
-
-# Just use direct column selection instead
-sales_wide['Mar']              # correct
-```
-
-`.xs(key, axis=1)` only makes sense when the *columns* form a MultiIndex (e.g. after `stack()` + `unstack()` produces multi-level columns).
-
----
-
-## Survival rate with `groupby` — use `.mean()`
-
-For a 0/1 column like `survived`, `.mean()` gives the fraction directly — no need for `.apply()`:
+Subtracting two datetime columns gives a Timedelta Series. To get the difference in hours, you need `.dt` (required for any time component on a Series) and `.total_seconds()` — `.hour` doesn't exist on Timedelta:
 
 ```python
-titanic.groupby(['sex', 'pclass'])['survived'].mean()
-```
+# Wrong — .hour doesn't exist on Timedelta, and .dt is missing
+(flights['arrive_utc'] - flights['depart_utc']).hour       # AttributeError
 
-Avoid this pattern:
-```python
-titanic.groupby(['sex', 'pclass']).apply(lambda x: x['survived'].sum() / x.agg('count'))
-```
-
-`x.agg('count')` returns a count *per column*, so dividing a scalar by a Series duplicates the survival rate across every column — the output looks like a full DataFrame but is just noise.
-
----
-
-## `.unstack(level)` — choosing which level becomes columns
-
-With no argument, `.unstack()` moves the **last (innermost)** index level into the columns by default.
-
-Pass a level name or position to control which level moves:
-
-```python
-# After groupby + stack, MultiIndex is (species, measurement)
-s = iris.groupby('species')[cols].mean().stack()
-
-s.unstack('species')      # → rows = measurements, columns = species
-s.unstack('measurement')  # → rows = species, columns = measurements (same as default)
-s.unstack()               # → moves last level (measurement) into columns — same as above
-```
-
-Use the level name to be explicit about what you want in the rows vs columns.
-
----
-
-## `category` dtype and the `.cat` accessor
-
-Convert a column to save memory when it has many repeated values:
-```python
-df['col'] = df['col'].astype('category')
-```
-
-The `.cat` accessor gives you category-specific tools:
-```python
-df['col'].cat.categories   # the unique values (Index)
-df['col'].cat.codes        # integer code for each row (Series)
-```
-
-**Getting a category → code mapping:**
-```python
-# Most idiomatic:
-{cat: code for code, cat in enumerate(df['col'].cat.categories)}
-# e.g. {'Biscoe': 0, 'Dream': 1, 'Torgersen': 2}
-```
-
-`cat.categories` only gives names — `enumerate` generates the matching code numbers (0, 1, 2...) since pandas assigns codes in the same order as `cat.categories`.
-
-**Ordered categories** — enable `<`, `>` comparisons:
-```python
-dtype = pd.CategoricalDtype(categories=['Fair', 'Good', 'Very Good', 'Premium', 'Ideal'], ordered=True)
-df['cut'] = df['cut'].astype(dtype)
-df[df['cut'] > 'Good']   # returns Very Good, Premium, Ideal
-```
-
-The order is left = lowest, right = highest — exactly as you list them.
-
-**Removing unused categories after filtering:**
-```python
-filtered = df[df['island'] == 'Biscoe']
-filtered['species'].cat.categories          # still shows all 3 species
-filtered['species'].cat.remove_unused_categories()  # only keeps species that appear
-```
-
-**Memory check:**
-```python
-df.memory_usage(deep=True)   # always use deep=True for accurate string/category sizes
+# Correct
+(flights['arrive_utc'] - flights['depart_utc']).dt.total_seconds() / 3600
 ```
 
 ---
 
-## List comprehensions
+### `shift(n)` vs `shift(n, freq=...)` — values vs index
+
+These two do fundamentally different things:
+
+**`shift(n)`** — moves the **values** down by `n` rows. The index stays fixed. Leaves `NaN` at the top:
+```python
+sales.shift(4)
+# 2024-01-07    NaN       ← first 4 rows become NaN
+# 2024-01-14    NaN
+# 2024-01-21    NaN
+# 2024-01-28    NaN
+# 2024-02-04    120.0     ← value from 4 rows earlier
+# ...
+```
+Use this to align values with a lagged version of themselves — e.g. comparing this week's sales to 4 weeks ago.
+
+**`shift(n, freq='W')`** — moves the **index** forward by `n` weeks. The values don't change. No NaN introduced:
+```python
+sales.shift(4, freq='W')
+# 2024-02-04    120       ← same value, index shifted forward 4 weeks
+# 2024-02-11    135
+# ...
+```
+Use this when you want to re-timestamp a copy of the data — e.g. creating a `lagged` DataFrame that can be joined back to the original on its index.
+
+**Key difference — join behavior:**
+```python
+sales.join(lagged, lsuffix='_now', rsuffix='_4w_ago')
+```
+With `freq=` shift, `lagged`'s index lines up with the original's index 4 weeks later, so each row shows current vs. what was happening 4 weeks prior — without any NaN from the shift itself.
+
+---
+
+## Merging and Joining
+
+### `join()` vs `merge()` — index vs column joins
+
+Both do the same thing under the hood — `join` is a convenience wrapper around `merge`.
+
+**`merge()`** — full control, join on columns or index:
+```python
+df1.merge(df2, on='key')                          # join on a column
+df1.merge(df2, left_on='id', right_on='emp_id')   # different column names
+df1.merge(df2, left_index=True, right_index=True) # join on index
+```
+Default is inner join.
+
+**`join()`** — shortcut for index-on-index (or index-on-column) joins:
+```python
+df1.join(df2)              # aligns on index by default
+df1.join(df2, on='key')    # df1 column matched to df2's index
+```
+Default is left join.
+
+**Rule of thumb:** use `join()` when aligning on the index, `merge()` when joining on columns.
+
+**`join()` arguments:**
+```python
+df.join(other, on=None, how='left', lsuffix='', rsuffix='', sort=False)
+```
+- `other` — the DataFrame/Series to join
+- `on` — column in `df` to match against `other`'s index (if omitted, uses `df`'s index)
+- `how` — `'left'` (default), `'right'`, `'inner'`, `'outer'`
+- `lsuffix` / `rsuffix` — suffix to add to overlapping column names
+- `sort` — sort the result index; default `False`
+
+---
+
+## Method Chaining and Mutation Safety
+
+### Avoiding SettingWithCopyWarning — `.copy()`
+
+When you slice a DataFrame (e.g. with `.xs()`, `.loc[]`, boolean filter), the result may be a **view**, not a new DataFrame. Assigning to it raises a `SettingWithCopyWarning`:
+
+```python
+q3 = sales_q.xs('Q3', level='quarter')
+q3['total'] = q3['revenue'] * q3['units']  # SettingWithCopyWarning
+```
+
+Fix: call `.copy()` to make it an independent DataFrame:
+
+```python
+q3 = sales_q.xs('Q3', level='quarter').copy()
+q3['total'] = q3['revenue'] * q3['units']  # no warning
+```
+
+---
+
+### When `.copy()` is redundant after a slice
+
+`.copy()` is needed when you get a view from a slice and then assign new columns to it:
+
+```python
+# ps might be a view — assigning to it can trigger SettingWithCopyWarning
+ps = penguins.loc[penguins['species'] == 'Adelie', ['bill_length_mm', 'bill_depth_mm']]
+ps['new_col'] = 0   # warning
+
+# .copy() makes it safe
+ps = penguins.loc[...].copy()
+ps['new_col'] = 0   # fine
+```
+
+But if your chain ends with something that already produces a new DataFrame — `.dropna()`, `.reset_index()`, `.rename()`, etc. — the result is already independent. Adding `.copy()` before it is redundant:
+
+```python
+# .dropna() returns a new DataFrame, so ps is not a view — no .copy() needed
+ps = penguins.loc[penguins['species'] == 'Adelie', cols].dropna()
+ps['new_col'] = 0   # safe
+```
+
+**Rule:** only add `.copy()` when the slice itself is the last step and you plan to mutate it afterward.
+
+---
+
+### `.pipe()` modifies the original DataFrame — use `.copy()`
+
+Inside pipe functions, `df['new_col'] = ...` modifies the DataFrame in place. pandas passes the original object, not a copy, so your source DataFrame also changes.
+
+Fix — add `.copy()` before the chain:
+
+```python
+res = df.copy().pipe(fn1).pipe(fn2).pipe(fn3)
+```
+
+Or copy inside each function:
+```python
+def add_value(df):
+    df = df.copy()
+    df['total_value'] = df['units_in_stock'] * df['unit_cost']
+    return df
+```
+
+The `.copy()` before the chain is cleaner.
+
+---
+
+## Python Reference
+
+### `.apply()` — if/else inside a lambda
+
+Inside `.apply()`, each value is a **scalar**, so use `if/else` — not `np.where`:
+
+```python
+# Series-level (element-wise):
+df['col'].apply(lambda x: 'Premium' if x > 50 else 'Standard')
+
+# Row-level (axis=1), multi-condition:
+df.apply(lambda row: 'High'   if row['age'] > 60 and row['severity'] > 7
+                else 'Medium' if row['age'] > 60 or  row['severity'] > 7
+                else 'Low', axis=1)
+```
+
+`&`/`|` also work on boolean scalars and give correct results — but `and`/`or` is the more natural Python style inside a lambda.
+
+`np.where` is for whole Series/arrays — don't nest it inside `.apply()`.
+
+**When to use `.apply()` with `DateOffset` vs vectorized:**
+
+`DateOffset` works element-wise on a Series — use vectorized when the offset is fixed:
+```python
+df['review_date'] = df['deadline'] - pd.DateOffset(weeks=2)   # fixed offset — no .apply() needed
+```
+
+Use `.apply(axis=1)` only when the offset varies per row:
+```python
+df['deadline'] = df.apply(lambda row: row['start'] + pd.DateOffset(weeks=row['duration']), axis=1)
+```
+
+---
+
+### List comprehensions
 
 A compact way to build a list using a loop and optional condition — all in one line:
 
@@ -1108,7 +1301,7 @@ result = [col for col in df.columns if df[col].dtype == 'object']
 
 ---
 
-## Set comprehensions
+### Set comprehensions
 
 Same syntax as a list comprehension but with `{}` — produces a set (unordered, unique values):
 
@@ -1133,7 +1326,7 @@ After groupby, the index holds the group keys — zip `rates.index` with `rates`
 
 ---
 
-## Dict comprehensions
+### Dict comprehensions
 
 Same idea as list comprehensions but builds a dict — use `{key: value for ...}`:
 
@@ -1178,186 +1371,7 @@ for plan, sid in zip(subs['plan'], subs['subscriber_id']):
 
 ---
 
-## When `.copy()` is redundant after a slice
-
-`.copy()` is needed when you get a view from a slice and then assign new columns to it:
-
-```python
-# ps might be a view — assigning to it can trigger SettingWithCopyWarning
-ps = penguins.loc[penguins['species'] == 'Adelie', ['bill_length_mm', 'bill_depth_mm']]
-ps['new_col'] = 0   # warning
-
-# .copy() makes it safe
-ps = penguins.loc[...].copy()
-ps['new_col'] = 0   # fine
-```
-
-But if your chain ends with something that already produces a new DataFrame — `.dropna()`, `.reset_index()`, `.rename()`, etc. — the result is already independent. Adding `.copy()` before it is redundant:
-
-```python
-# .dropna() returns a new DataFrame, so ps is not a view — no .copy() needed
-ps = penguins.loc[penguins['species'] == 'Adelie', cols].dropna()
-ps['new_col'] = 0   # safe
-```
-
-**Rule:** only add `.copy()` when the slice itself is the last step and you plan to mutate it afterward.
-
----
-
-## `.pipe()` modifies the original DataFrame — use `.copy()`
-
-Inside pipe functions, `df['new_col'] = ...` modifies the DataFrame in place. pandas passes the original object, not a copy, so your source DataFrame also changes.
-
-Fix — add `.copy()` before the chain:
-
-```python
-res = df.copy().pipe(fn1).pipe(fn2).pipe(fn3)
-```
-
-Or copy inside each function:
-```python
-def add_value(df):
-    df = df.copy()
-    df['total_value'] = df['units_in_stock'] * df['unit_cost']
-    return df
-```
-
-The `.copy()` before the chain is cleaner.
-
----
-
-## `shift(n)` vs `shift(n, freq=...)` — values vs index
-
-These two do fundamentally different things:
-
-**`shift(n)`** — moves the **values** down by `n` rows. The index stays fixed. Leaves `NaN` at the top:
-```python
-sales.shift(4)
-# 2024-01-07    NaN       ← first 4 rows become NaN
-# 2024-01-14    NaN
-# 2024-01-21    NaN
-# 2024-01-28    NaN
-# 2024-02-04    120.0     ← value from 4 rows earlier
-# ...
-```
-Use this to align values with a lagged version of themselves — e.g. comparing this week's sales to 4 weeks ago.
-
-**`shift(n, freq='W')`** — moves the **index** forward by `n` weeks. The values don't change. No NaN introduced:
-```python
-sales.shift(4, freq='W')
-# 2024-02-04    120       ← same value, index shifted forward 4 weeks
-# 2024-02-11    135
-# ...
-```
-Use this when you want to re-timestamp a copy of the data — e.g. creating a `lagged` DataFrame that can be joined back to the original on its index.
-
-**Key difference — join behavior:**
-```python
-sales.join(lagged, lsuffix='_now', rsuffix='_4w_ago')
-```
-With `freq=` shift, `lagged`'s index lines up with the original's index 4 weeks later, so each row shows current vs. what was happening 4 weeks prior — without any NaN from the shift itself.
-
----
-
-## `join()` vs `merge()` — index vs column joins
-
-Both do the same thing under the hood — `join` is a convenience wrapper around `merge`.
-
-**`merge()`** — full control, join on columns or index:
-```python
-df1.merge(df2, on='key')                          # join on a column
-df1.merge(df2, left_on='id', right_on='emp_id')   # different column names
-df1.merge(df2, left_index=True, right_index=True) # join on index
-```
-Default is inner join.
-
-**`join()`** — shortcut for index-on-index (or index-on-column) joins:
-```python
-df1.join(df2)              # aligns on index by default
-df1.join(df2, on='key')    # df1 column matched to df2's index
-```
-Default is left join.
-
-**Rule of thumb:** use `join()` when aligning on the index, `merge()` when joining on columns.
-
-**`join()` arguments:**
-```python
-df.join(other, on=None, how='left', lsuffix='', rsuffix='', sort=False)
-```
-- `other` — the DataFrame/Series to join
-- `on` — column in `df` to match against `other`'s index (if omitted, uses `df`'s index)
-- `how` — `'left'` (default), `'right'`, `'inner'`, `'outer'`
-- `lsuffix` / `rsuffix` — suffix to add to overlapping column names
-- `sort` — sort the result index; default `False`
-
----
-
-## Finding the key with the max value in a dict
-
-`list(d.keys())[np.argmax(list(d.values()))]` works but is roundabout — `np.argmax` is meant for arrays, not dicts.
-
-Use `max()` with `key=` instead:
-
-```python
-max(meang, key=meang.get)   # returns the key with the highest value
-```
-
-`max()` iterates over the dict's keys and uses `.get` to look up each value. Cleaner, no index arithmetic, no list conversion.
-
-Use `np.argmax` when working with arrays or Series. For dict lookups, `max(..., key=...)` is the right tool.
-
-**Even cleaner — wrap in `pd.Series` and use `.idxmax()`:**
-
-When collecting group stats into a dict (e.g. `np.nanmean` per column), skip the loop entirely with a dict comprehension, wrap in `pd.Series`, then call `.idxmax()`:
-
-```python
-# Less clean — dict loop + max()
-y = {}
-for c in revenue.columns:
-    cy = al[c + '_yoy']
-    y[c] = np.nanmean(cy)
-max(y, key=y.get)
-
-# Cleaner — dict comprehension + pd.Series + .idxmax()
-y = pd.Series({c: np.nanmean(al[c+'_yoy']) for c in revenue.columns})
-y.idxmax()
-```
-
-Use `np.nanmean` here (not `np.mean`) because YoY columns have NaN for the first N rows where no prior-year data exists.
-
----
-
-## `groupby()` on a Series — passing an external grouper
-
-You can call `.groupby()` directly on a Series, passing another Series as the grouping key:
-
-```python
-s.groupby(another_series)
-```
-
-As long as both Series share the same index, pandas lines them up and groups `s` by the values in `another_series`. This is equivalent to grouping on a DataFrame column:
-
-```python
-# Form 1 — groupby on a DataFrame (common)
-diamonds.groupby('color')['cut'].something()
-
-# Form 2 — groupby on a Series, grouper passed externally
-diamonds['cut'].groupby(diamonds['color']).something()
-```
-
-The two forms produce the same result. Form 2 is useful when the Series being grouped has already been transformed (e.g. into booleans) and you don't want to add it as a column first:
-
-```python
-# Fraction of rows with cut >= 'Very Good', per color group
-# (works because 'cut' is an ordered category)
-(diamonds['cut'] >= 'Very Good').groupby(diamonds['color']).mean()
-```
-
-Without adding a new column to the DataFrame, this groups the boolean Series by color and takes the mean — giving the fraction of high-quality cuts per color.
-
----
-
-## f-string quote conflicts
+### f-string quote conflicts
 
 Inside an f-string, the quotes used for dictionary keys must differ from the quotes wrapping the f-string:
 
