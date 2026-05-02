@@ -1280,6 +1280,16 @@ A compact way to build a list using a loop and optional condition — all in one
 ```
 This pairs each name with its corresponding band value. Without `zip`, `if band == 'exec'` would compare the entire Series to a scalar, raising `ValueError: The truth value of a Series is ambiguous`.
 
+**Printing numbered rows with `enumerate` + `zip`:**
+```python
+for i, (method, count) in enumerate(zip(g.index, g['n']), start=1):
+    print(f"{i}. {method}: {count}")
+# 1. Radial Velocity: 553
+# 2. Transit: 397
+# ...
+```
+`enumerate(iterable, start=1)` adds a counter to each item. Wrap `zip(...)` inside it to number paired values — useful for printing ranked groupby results. The `start=1` makes the counter begin at 1 instead of 0.
+
 The pattern is always: `[what_to_keep for each_item in something if condition]`.
 
 The `if` part is optional — leave it out to include every item:
