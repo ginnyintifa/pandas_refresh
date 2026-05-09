@@ -1142,6 +1142,53 @@ df.join(other, on=None, how='left', lsuffix='', rsuffix='', sort=False)
 
 ---
 
+### `merge_asof` vs `merge_ordered` — nearest-key vs full timeline
+
+**`merge_asof`** — inexact / nearest-key join
+- Always a left join: every row in left gets exactly one match from right
+- Matches on the *nearest* key (backward, forward, or nearest) — not exact
+- Use when: attaching the most recent price, prevailing rate, last known reading
+
+```python
+pd.merge_asof(trades, prices, on='time')  # each trade gets the last known price
+```
+
+**`merge_ordered`** — full outer merge preserving sort order
+- Outer join: takes the union of all keys from both sides
+- Matches on *exact* keys — rows with no match get NaN (then ffill)
+- Use when: building a complete timeline from two sparse series
+
+```python
+pd.merge_ordered(series_a, series_b, on='date', fill_method='ffill')
+```
+
+| | `merge_asof` | `merge_ordered` |
+|---|---|---|
+| Result rows | same as left | union of both |
+| Matching | nearest key | exact key |
+| NaN after merge | only if no past value exists | wherever one side has no data |
+| Typical follow-up | nothing | `dropna()` |
+| Direction control | `direction=` backward / forward / nearest | no (always outer) |
+| Group support | `by=` (both sides match on group) | `left_by=` (left has groups, right is shared reference) |
+
+**`merge_asof` extra parameters:**
+```python
+pd.merge_asof(left, right, on='time', direction='forward')   # next future value instead of last past
+pd.merge_asof(left, right, on='time', tolerance=pd.Timedelta('5min'))  # only match if within 5 min
+pd.merge_asof(left, right, on='date', by='employee_id')      # match within same group first
+```
+
+**`merge_ordered` `left_by=` — when left has groups, right is a shared reference:**
+```python
+# vitals has patient groups; shifts applies to all patients
+pd.merge_ordered(vitals, shifts, on='time', left_by='patient_id', fill_method='ffill')
+```
+Use `left_by=` (not `by=`, which doesn't exist) — and only one of `left_by` / `right_by` at a time.
+
+**Rule of thumb:** "what was the value *at* this moment?" → `merge_asof`. "What does the combined timeline look like?" → `merge_ordered`.
+
+---
+
 ## Method Chaining and Mutation Safety
 
 ### Avoiding SettingWithCopyWarning — `.copy()`
