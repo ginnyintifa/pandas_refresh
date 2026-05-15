@@ -827,6 +827,25 @@ max(meang, key=meang.get)   # returns the key with the highest value
 
 Use `np.argmax` when working with arrays or Series. For dict lookups, `max(..., key=...)` is the right tool.
 
+---
+
+### Indexing a list with numpy positions — use list comprehension or `np.array()`
+
+Plain Python lists don't support array indexing — passing a numpy array of positions raises `TypeError`:
+
+```python
+names = ['Ana', 'Ben', 'Cal']
+order = np.argsort(scores)
+
+names[order]                   # TypeError — list doesn't support array index
+np.array(names)[order]         # correct — convert to numpy array first
+[names[i] for i in order]      # correct — list comprehension
+```
+
+Both fixes work. List comprehension is more readable for short lists; `np.array()` is more concise when you're already in a numpy-heavy workflow.
+
+---
+
 **Even cleaner — wrap in `pd.Series` and use `.idxmax()`:**
 
 When collecting group stats into a dict (e.g. `np.nanmean` per column), skip the loop entirely with a dict comprehension, wrap in `pd.Series`, then call `.idxmax()`:
