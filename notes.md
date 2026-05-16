@@ -846,6 +846,29 @@ Both fixes work. List comprehension is more readable for short lists; `np.array(
 
 ---
 
+### `np.unravel_index` — convert flat position to (row, col)
+
+`np.argmax` on a 2D array returns a flat index. `np.unravel_index` converts it to `(row, col)`:
+
+```python
+np.unravel_index(np.argmax(arr), arr.shape)   # → (row, col) of the maximum
+```
+
+**Common use — find the most-correlated pair in a correlation matrix:**
+
+```python
+cc = np.corrcoef([arr1, arr2, arr3])   # 3×3 matrix, diagonal is always 1.0
+
+cc_copy = cc.copy()
+np.fill_diagonal(cc_copy, -np.inf)     # mask diagonal so self-correlations are ignored
+i, j = np.unravel_index(np.argmax(cc_copy), cc_copy.shape)
+print(labels[i], labels[j], 'are most correlated')
+```
+
+`np.fill_diagonal` modifies in place — always `.copy()` first to preserve the original.
+
+---
+
 **Even cleaner — wrap in `pd.Series` and use `.idxmax()`:**
 
 When collecting group stats into a dict (e.g. `np.nanmean` per column), skip the loop entirely with a dict comprehension, wrap in `pd.Series`, then call `.idxmax()`:
