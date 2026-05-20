@@ -119,6 +119,24 @@ np.mean(res.loc[res['is_api'], ['status_code']] >= 400)  # Series with one value
 
 ---
 
+### `s[:3]` works but `s[-1]` doesn't — slice vs single integer in `[]`
+
+`[]` on a Series treats **slices** as positional but **single integers** as label lookups:
+
+```python
+s[:3]    # slice → positional, always works
+s[-1]    # single integer → looks for label -1 → KeyError if -1 isn't in the index
+```
+
+Fix: always use `.iloc` for position-based access:
+
+```python
+s.iloc[-1]   # last item by position — always safe
+s.iloc[:3]   # same as s[:3] but explicit
+```
+
+---
+
 ### `.loc` vs `.iloc` — label vs position
 
 `.loc` is **label-based** — the row selector can be an index label, a boolean mask, or a slice of labels. The second argument selects columns by name:
